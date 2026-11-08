@@ -239,10 +239,10 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
   </div>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="presidencia" aria-selected="true">Presidência</button>
+    <button role="tab" data-tab="personalizar" aria-selected="false">Personalizar</button>
     <button role="tab" data-tab="editar" aria-selected="false">Editar presidência</button>
     <button role="tab" data-tab="discurso" aria-selected="false">Discurso</button>
     <button role="tab" data-tab="editar-discurso" aria-selected="false">Editar discurso</button>
-    <button role="tab" data-tab="personalizar" aria-selected="false">Personalizar</button>
     <button role="tab" data-tab="historico" aria-selected="false">Histórico</button>
   </nav>
 </div>
@@ -343,6 +343,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
     <div id="ptImp" hidden>
       <div class="f"><label for="ptImpTxt">Cole o esboço inteiro</label>
         <textarea id="ptImpTxt" rows="8" placeholder="Deixe uma linha em branco entre os pontos ou parágrafos que quer destacar."></textarea></div>
+      <div class="preview-mini" id="ptImpCores" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:16rem;overflow:auto" aria-label="Prévia das cores coladas" hidden></div>
       <p class="hint">Separe os blocos por uma linha em branco. Em “Criar pontos”, a primeira linha vira título. Em “Criar parágrafos”, todo o texto fica no corpo do bloco.</p>
       <div class="tools" style="margin-top:10px"><button class="btn primary" id="ptImpOk">Criar pontos</button><button class="btn" id="ptImpParagrafos">Criar parágrafos</button><button class="btn" id="ptImpNo">Cancelar</button></div>
     </div>
@@ -607,10 +608,16 @@ const CORES_PONTO=new Map([
   ["azul","Azul"],["rosa","Rosa"],["roxo","Roxo"],["vermelho","Vermelho"],["laranja","Laranja"]
 ]);
 const CORES_IMPORTACAO=["azul","vermelho","verde","roxo","laranja","rosa","amarelo"];
-function renderTexto(t){const out=[];let ul=null;
-  for(const raw of String(t||"").split("\n")){const l=raw.trim();if(!l){ul=null;continue}
-    if(/^[-•*]\s*/.test(l)){if(!ul){ul=[];out.push(ul)}ul.push(l.replace(/^[-•*]\s*/,""))}else{ul=null;out.push(l)}}
-  return out.map(x=>Array.isArray(x)?`<ul>${x.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`:`<p>${esc(x)}</p>`).join("")}
+function renderTexto(t,faixas){const out=[];let ul=null,pos=0;
+  for(const raw of String(t||"").split("\n")){
+    const l=raw.trim(),inicio=pos+raw.length-raw.trimStart().length;
+    pos+=raw.length+1;
+    if(!l){ul=null;continue}
+    const marcador=l.match(/^[-•*]\s*/)?.[0];
+    if(marcador){if(!ul){ul=[];out.push(ul)}ul.push(colorirTrecho(l.slice(marcador.length),faixas,inicio+marcador.length))}
+    else{ul=null;out.push(colorirTrecho(l,faixas,inicio))}
+  }
+  return out.map(x=>Array.isArray(x)?`<ul>${x.map(i=>`<li>${i}</li>`).join("")}</ul>`:`<p>${x}</p>`).join("")}
 function renderPtView(){let acc=0;
   const tot=S.pontos.reduce((s,p)=>s+(+p.min||0),0);
   $("ptSum").textContent=S.pontos.length?`${tot} de ${meta()} min`:"Nenhum ponto ainda";$("ptSum").className="sum"+(tot>meta()?" over":"");
@@ -620,15 +627,16 @@ function renderPtView(){let acc=0;
     const titulo=p.titulo|| (p.paragrafo?"":"(sem título)");
     const paragrafoSemTempo=p.paragrafo&&!p.min;
     return`<div class="ponto${paragrafoSemTempo?" paragrafo":""}" data-i="${i}"${cor}>${paragrafoSemTempo?"":`<div class="tm">${p.min?`${a}–${acc} min`:"—"}</div>`}
-      <div class="body">${titulo?`<h4>${esc(titulo)}</h4>`:""}${renderTexto(p.texto)}</div></div>`}).join("");
+      <div class="body">${titulo?`<h4>${colorirTrecho(titulo,p.coresTitulo)}</h4>`:""}${renderTexto(p.texto,p.coresTexto)}</div></div>`}).join("");
   curIdx=-2;drawClock()}
+const temCoresOriginais=p=>Boolean(p.coresTitulo?.length||p.coresTexto?.length);
 function renderPtEdit(){
   $("ptList").innerHTML=S.pontos.map((p,i)=>`<div class="blk pt-edit" data-id="${p.id}">
     <div class="r"><input data-k="titulo" id="pt-${p.id}" placeholder="Título do ponto" value="${esc(p.titulo)}" aria-label="Título do ponto">
       <input data-k="min" inputmode="numeric" placeholder="min" value="${esc(p.min)}" aria-label="Minutos"></div>
     <textarea data-k="texto" rows="4" placeholder="Textos, perguntas, ilustrações…" aria-label="Conteúdo do ponto">${esc(p.texto)}</textarea>
     <div class="blk-head"><label>Cor da letra
-      <select data-k="cor">${Array.from(CORES_PONTO,([valor,nome])=>`<option value="${valor}"${(p.cor||"")===valor?" selected":""}>${nome}</option>`).join("")}</select>
+      <select data-k="cor">${temCoresOriginais(p)?'<option value="original" selected disabled>Cores originais</option>':""}${Array.from(CORES_PONTO,([valor,nome])=>`<option value="${valor}"${!temCoresOriginais(p)&&(p.cor||"")===valor?" selected":""}>${nome}</option>`).join("")}</select>
     </label><span class="spacer"></span>
       <button class="btn sm" data-act="up"${i===0?" disabled":""} aria-label="Subir">↑</button>
       <button class="btn sm" data-act="down"${i===S.pontos.length-1?" disabled":""} aria-label="Descer">↓</button>
@@ -636,30 +644,143 @@ function renderPtEdit(){
 const ptOf=el=>{const d=el.closest(".pt-edit");return d&&S.pontos.find(p=>p.id===d.dataset.id)};
 $("ptList").addEventListener("input",e=>{const p=ptOf(e.target);if(!p)return;const k=e.target.dataset.k;
   if(k==="cor")return;
+  if(k==="titulo"&&p.coresTitulo)p.coresTitulo=ajustarCores(p.titulo,e.target.value,p.coresTitulo);
+  if(k==="texto"&&p.coresTexto)p.coresTexto=ajustarCores(p.texto,e.target.value,p.coresTexto);
   if(k==="min"){p.min=e.target.value.replace(/[^\d]/g,"");e.target.value=p.min}else p[k]=e.target.value;saveS();renderPtView()});
 $("ptList").addEventListener("change",e=>{
   const p=ptOf(e.target);
   if(!p||e.target.dataset.k!=="cor"||!CORES_PONTO.has(e.target.value))return;
-  p.cor=e.target.value;saveS();renderPtView();
+  p.cor=e.target.value;delete p.coresTitulo;delete p.coresTexto;
+  e.target.querySelector('option[value="original"]')?.remove();
+  saveS();renderPtView();
 });
 $("ptList").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(!a)return;
   moveAct(S.pontos,a,ptOf(a),()=>{saveS();renderPtEdit();renderPtView()})});
 $("ptAdd").onclick=()=>{const p={id:uid(),titulo:"",min:"",texto:""};S.pontos.push(p);saveS();renderPtEdit();renderPtView();$("pt-"+p.id).focus()};
 $("ptImpBtn").onclick=()=>{$("ptImp").hidden=false;$("ptImpTxt").focus()};
 $("ptImpNo").onclick=()=>{$("ptImp").hidden=true};
-function importarEsboco(comTitulos){
-  const blocos=$("ptImpTxt").value.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
-  if(!blocos.length){toast("Cole algum texto primeiro");return}
-  let corIndex=CORES_IMPORTACAO.indexOf(S.pontos[S.pontos.length-1]?.cor)+1;
-  for(const bloco of blocos){
-    const [primeiraLinha,...resto]=bloco.split("\n");
-    S.pontos.push({
-      id:uid(),titulo:comTitulos?primeiraLinha.trim():"",min:"",
-      texto:comTitulos?resto.join("\n"):bloco,paragrafo:!comTitulos,
-      cor:CORES_IMPORTACAO[corIndex++%CORES_IMPORTACAO.length]
-    });
+// Somente texto e cores são extraídos. Nenhum nó colado entra no documento.
+const corColadaValida=cor=>typeof cor==="string"&&cor.length<=64&&
+  /^(?:#[a-f0-9]{3,8}|[a-z]+|rgba?\([\d.,% /]+\))$/i.test(cor)&&
+  !/^(inherit|initial|unset|revert|currentcolor|transparent)$/i.test(cor)&&CSS.supports("color",cor);
+function faixasValidas(faixas,tamanho){
+  if(!Array.isArray(faixas))return false;
+  let fim=0;
+  return faixas.every(f=>{
+    if(!f||!Number.isInteger(f.inicio)||!Number.isInteger(f.fim)||
+      f.inicio<fim||f.fim<=f.inicio||f.fim>tamanho||!corColadaValida(f.cor))return false;
+    fim=f.fim;return true;
+  });
+}
+function colorirTrecho(texto,faixas=[],inicio=0){
+  const fim=inicio+texto.length;
+  let pos=inicio,saida="";
+  for(const f of faixas){
+    if(f.fim<=inicio)continue;
+    if(f.inicio>=fim)break;
+    const a=Math.max(inicio,f.inicio),b=Math.min(fim,f.fim);
+    if(!corColadaValida(f.cor))continue;
+    saida+=esc(texto.slice(pos-inicio,a-inicio));
+    saida+=`<span style="color:${f.cor}">${esc(texto.slice(a-inicio,b-inicio))}</span>`;
+    pos=b;
   }
-  saveS();$("ptImpTxt").value="";$("ptImp").hidden=true;
+  return saida+esc(texto.slice(pos-inicio));
+}
+function recortarCores(faixas,inicio,fim){
+  return faixas.filter(f=>f.fim>inicio&&f.inicio<fim).map(f=>({
+    inicio:Math.max(f.inicio,inicio)-inicio,fim:Math.min(f.fim,fim)-inicio,cor:f.cor
+  }));
+}
+function ajustarCores(antes,depois,faixas){
+  let inicio=0,a=antes.length,b=depois.length;
+  while(inicio<a&&inicio<b&&antes[inicio]===depois[inicio])inicio++;
+  while(a>inicio&&b>inicio&&antes[a-1]===depois[b-1]){a--;b--}
+  return [...recortarCores(faixas,0,inicio),...recortarCores(faixas,a,antes.length)
+    .map(f=>({inicio:f.inicio+b,fim:f.fim+b,cor:f.cor}))];
+}
+function lerCoresColadas(html,texto){
+  const template=document.createElement("template");
+  template.innerHTML=html;
+  const faixas=[];
+  let pos=0;
+  function visitar(no,herdada){
+    if(no.nodeType===3){
+      const partes=no.textContent.match(/\S+/g)||[];
+      for(const parte of partes){
+        // Alinha por palavras para respeitar as quebras fornecidas pelo texto simples.
+        while(pos<texto.length&&/\s/.test(texto[pos]))pos++;
+        const palavra=texto.slice(pos,pos+parte.length).replace(/\u00a0/g," ");
+        if(palavra!==parte)return false;
+        if(herdada){
+          const ultima=faixas[faixas.length-1];
+          if(ultima?.cor===herdada&&/^\s*$/.test(texto.slice(ultima.fim,pos)))ultima.fim=pos+parte.length;
+          else faixas.push({inicio:pos,fim:pos+parte.length,cor:herdada});
+        }
+        pos+=parte.length;
+      }
+      return true;
+    }
+    if(no.nodeType!==1)return true;
+    if(["SCRIPT","STYLE","HEAD","TITLE","META","LINK","IMG","OBJECT","IFRAME","SVG","TEMPLATE"].includes(no.tagName)||no.style.display==="none")return true;
+    const definida=no.style.color||no.getAttribute("color");
+    const cor=corColadaValida(definida)?definida:herdada;
+    return Array.from(no.childNodes).every(filho=>visitar(filho,cor));
+  }
+  return Array.from(template.content.childNodes).every(no=>visitar(no,""))&&!texto.slice(pos).trim()?faixas:[];
+}
+const campoColado=$("ptImpTxt");
+let colagemColorida=null;
+function mostrarCoresColadas(){
+  const previa=$("ptImpCores");
+  previa.hidden=!colagemColorida?.faixas.length;
+  previa.innerHTML=previa.hidden?"":colorirTrecho(colagemColorida.texto,colagemColorida.faixas);
+}
+campoColado.addEventListener("input",()=>{
+  if(!colagemColorida)return;
+  colagemColorida={texto:campoColado.value,
+    faixas:ajustarCores(colagemColorida.texto,campoColado.value,colagemColorida.faixas)};
+  mostrarCoresColadas();
+});
+campoColado.addEventListener("paste",event=>{
+  const html=event.clipboardData?.getData("text/html");
+  const texto=event.clipboardData?.getData("text/plain").replace(/\r\n?/g,"\n");
+  if(!html||!texto||html.length>1000000)return;
+  const faixas=lerCoresColadas(html,texto);
+  if(!faixas.length)return;
+  event.preventDefault();
+  const inicio=campoColado.selectionStart,fim=campoColado.selectionEnd;
+  const antigas=colagemColorida?.texto===campoColado.value?colagemColorida.faixas:[];
+  const deslocar=(lista,offset)=>lista.map(f=>({inicio:f.inicio+offset,fim:f.fim+offset,cor:f.cor}));
+  const antes=recortarCores(antigas,0,inicio);
+  const depois=recortarCores(antigas,fim,campoColado.value.length);
+  campoColado.setRangeText(texto,inicio,fim,"end");
+  colagemColorida={texto:campoColado.value,faixas:[
+    ...antes,...deslocar(faixas,inicio),...deslocar(depois,inicio+texto.length)
+  ]};
+  mostrarCoresColadas();
+});
+
+function importarEsboco(comTitulos){
+  const valor=campoColado.value;
+  const blocos=valor.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
+  if(!blocos.length){toast("Cole algum texto primeiro");return}
+  const cores=colagemColorida?.texto===valor?colagemColorida.faixas:[];
+  let pos=0,corIndex=CORES_IMPORTACAO.indexOf(S.pontos[S.pontos.length-1]?.cor)+1;
+  for(const bloco of blocos){
+    const inicio=valor.indexOf(bloco,pos);
+    pos=inicio+bloco.length;
+    const [primeiraLinha,...resto]=bloco.split("\n");
+    const titulo=comTitulos?primeiraLinha.trim():"";
+    const texto=comTitulos?resto.join("\n"):bloco;
+    const coresTitulo=recortarCores(cores,inicio,inicio+titulo.length);
+    const coresTexto=recortarCores(cores,pos-texto.length,pos);
+    const ponto={id:uid(),titulo,min:"",texto,paragrafo:!comTitulos,
+      cor:cores.length?"":CORES_IMPORTACAO[corIndex++%CORES_IMPORTACAO.length]};
+    if(coresTitulo.length)ponto.coresTitulo=coresTitulo;
+    if(coresTexto.length)ponto.coresTexto=coresTexto;
+    S.pontos.push(ponto);
+  }
+  saveS();campoColado.value="";colagemColorida=null;$("ptImpCores").hidden=true;$("ptImp").hidden=true;
   renderPtEdit();renderPtView();toast(blocos.length+" bloco(s) criado(s)");
 }
 $("ptImpOk").onclick=()=>importarEsboco(true);
@@ -712,7 +833,7 @@ document.querySelectorAll(".wake").forEach(b=>b.onclick=async()=>{
   catch(e){toast("Este aparelho não permitiu manter a tela ligada")}});
 
 /* ---------- Abas ---------- */
-const TABS=["presidencia","editar","discurso","editar-discurso","personalizar","historico"];
+const TABS=["presidencia","personalizar","editar","discurso","editar-discurso","historico"];
 function showTab(name){curTab=name;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===name));
   TABS.forEach(t=>$("tab-"+t).hidden=t!==name);
@@ -774,7 +895,9 @@ function backupValido(b){
     (r.registroId===undefined||idSeguro(r.registroId))&&Array.isArray(r.pontos)&&
     r.pontos.every(p=>objeto(p)&&idSeguro(p.id)&&typeof p.titulo==="string"&&
       typeof p.texto==="string"&&(typeof p.min==="string"||Number.isFinite(p.min))&&
-      (p.cor===undefined||CORES_PONTO.has(p.cor)));
+      (p.cor===undefined||CORES_PONTO.has(p.cor))&&
+      (p.coresTitulo===undefined||faixasValidas(p.coresTitulo,p.titulo.length))&&
+      (p.coresTexto===undefined||faixasValidas(p.coresTexto,p.texto.length)));
   const c=b.preferencias;
   return reuniao(b.atual)&&Array.isArray(b.historico)&&b.historico.every(reuniao)&&
     objeto(c)&&objeto(c.cores)&&Object.values(c.cores).every(corHex)&&
