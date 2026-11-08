@@ -1,19 +1,31 @@
-// Guarda o app no aparelho para abrir mesmo sem internet.
-// Ao mudar algum arquivo, aumente a versão abaixo para os celulares atualizarem.
-const CACHE = "esboco-eletronico-v5";
+// O cache contém apenas os arquivos públicos do aplicativo.
+const CACHE = "esboco-eletronico-v6";
 const ARQUIVOS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
-self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS))); self.skipWaiting(); });
-self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("esboco-eletronico-") && k !== CACHE).map(k => caches.delete(k)))));
-  self.clients.claim();
+const ASSETS = new Set(ARQUIVOS.map(path => new URL(path, self.registration.scope).href));
+
+self.addEventListener("install", event => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(ARQUIVOS.map(path => new Request(new URL(path, self.registration.scope), {cache: "reload"})));
+    await self.skipWaiting();
+  })());
 });
-self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return;
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
-      const copia = resp.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copia)).catch(() => {});
-      return resp;
-    }).catch(() => caches.match("./index.html")))
-  );
+
+self.addEventListener("activate", event => {
+  event.waitUntil((async () => {
+    const nomes = await caches.keys();
+    await Promise.all(nomes.filter(nome => nome.startsWith("esboco-eletronico-") && nome !== CACHE).map(nome => caches.delete(nome)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  url.search = "";
+  if (!ASSETS.has(url.href)) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    return await cache.match(url.href) || fetch(event.request);
+  })());
 });

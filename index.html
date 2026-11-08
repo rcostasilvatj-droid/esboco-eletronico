@@ -11,8 +11,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Esboço Eletrônico">
 <title>Esboço Eletrônico</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Literata:opsz,wght@7..72,400;7..72,700&family=Montserrat:wght@500;700&display=swap">
 <style>
 /* Layout: cabeçalho fixo com abas (e relógio pequeno no Discurso) + folha de leitura centralizada.
    Cores do texto da presidência (--c1/--c2/--c3/--hl/--fill) vêm de Personalizar; fundo claro/escuro escolhido por tela. */
@@ -92,6 +90,28 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .btn:disabled{opacity:.4;cursor:default}
 .spacer{flex:1}
 
+
+/* Modo apresentação */
+body.leitura-ampliada header.bar,
+body.leitura-ampliada #tab-discurso > .tools,
+body.leitura-ampliada #dicaApresentacao,
+body.leitura-ampliada footer.foot{display:none}
+body.leitura-ampliada .wrap{max-width:none;padding-block:0}
+body.leitura-ampliada #tab-discurso .sheet{
+  min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  border:0;
+  padding:clamp(12px,2.4vw,36px);
+  font-size:calc(var(--fs) + clamp(.12rem,1vw,.65rem));
+  overflow-wrap:anywhere;
+}
+#sairLeituraAmpliada{
+  position:fixed;z-index:12;top:max(12px,env(safe-area-inset-top));
+  inset-inline-end:max(12px,env(safe-area-inset-right));
+}
+@media (max-width:520px){
+  body.leitura-ampliada #tab-discurso .ponto{grid-template-columns:minmax(0,1fr)}
+}
+
 /* Folha (presidência e discurso) */
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:28px clamp(18px,5vw,44px);font-family:var(--read);font-size:var(--fs);line-height:1.65}
 .sheet h2{font-family:var(--ui);text-align:center;margin:0 0 14px;font-size:1.3em;text-wrap:balance}
@@ -110,12 +130,22 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .disc-head .m{font-family:var(--ui);color:var(--muted);font-size:.8em;margin-top:4px}
 .outline{display:grid;gap:2px}
 .ponto{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;padding:10px 12px;border-radius:8px;transition:background .3s}
+.ponto[data-cor]{border-inline-start:4px solid var(--ponto-cor)}
 .ponto.cur{background:var(--cur)}
+.ponto.paragrafo{grid-template-columns:minmax(0,1fr)}
+.ponto[data-cor="amarelo"]{--ponto-cor:#775400;--ponto-cor:light-dark(#775400,#ffdc70)}
+.ponto[data-cor="verde"]{--ponto-cor:#166044;--ponto-cor:light-dark(#166044,#89edba)}
+.ponto[data-cor="azul"]{--ponto-cor:#2155a0;--ponto-cor:light-dark(#2155a0,#a1c9ff)}
+.ponto[data-cor="rosa"]{--ponto-cor:#9b3567;--ponto-cor:light-dark(#9b3567,#ffadd3)}
+.ponto[data-cor="roxo"]{--ponto-cor:#6a389b;--ponto-cor:light-dark(#6a389b,#ddbbff)}
+.ponto[data-cor="vermelho"]{--ponto-cor:#a72b32;--ponto-cor:light-dark(#a72b32,#ffabab)}
+.ponto[data-cor="laranja"]{--ponto-cor:#894002;--ponto-cor:light-dark(#894002,#ffc181)}
 .ponto .tm{font-family:var(--ui);font-size:.75em;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:.25em;min-width:4.6em}
 .ponto .body{min-width:0}
 .ponto h4{margin:0 0 4px;font-size:1.05em;color:var(--d2)}
 .ponto p{margin:0 0 .4em;color:var(--d3)}
 .ponto ul{margin:0 0 .4em;padding-left:1.2em;color:var(--d4)}
+.ponto[data-cor] :is(h4,p,ul){color:var(--ponto-cor)}
 :root[data-nomark] .mark{background:none;color:inherit;padding:0}
 .sw.off{opacity:.45}
 .check{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:12px;cursor:pointer}
@@ -252,7 +282,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
   <div class="card"><h3>Conclusão</h3><div class="grid">
     <div class="f"><label for="assistencia">Assistência (pessoas)</label><input id="assistencia" inputmode="numeric"></div>
     <div class="f"><label for="proxDia">Próxima conferência será no</label>
-      <select id="proxDia"><option>sábado</option><option>domingo</option></select></div>
+      <select id="proxDia"><option value="">Selecione o dia</option><option>sábado</option><option>domingo</option></select></div>
     <div class="f full"><label for="proxTema">Tema da próxima conferência</label><input id="proxTema"></div>
     <div class="f"><label for="condutor">Condutor da Sentinela</label><input id="condutor"></div>
   </div></div>
@@ -272,8 +302,11 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
     <button class="btn sm wake">Manter tela ligada</button>
     <button class="btn sm fundo" data-view="disc">Fundo escuro</button>
     <button class="btn sm" id="cronoToggle">Cronômetro: ligado</button>
+    <button class="btn sm" type="button" id="ampliarEsboco" aria-describedby="dicaApresentacao">Modo apresentação</button>
   </div>
-  <article class="sheet">
+  <p class="hint" id="dicaApresentacao">No modo apresentação, toque no texto para mostrar o botão de saída.</p>
+  <button class="btn sm" type="button" id="sairLeituraAmpliada" hidden>Sair da apresentação</button>
+  <article class="sheet" id="folhaDiscurso" tabindex="-1">
     <div class="disc-head" id="discHead"></div>
     <div class="outline" id="ptView"></div>
   </article>
@@ -301,7 +334,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
 
   <div class="card">
     <div class="card-head"><h3>Pontos do esboço</h3></div>
-    <p class="hint">Cada ponto tem título, minutos e conteúdo. Linhas que começam com “-” viram tópicos. Com o cronômetro rodando, o ponto atual fica destacado na aba Discurso.</p>
+    <p class="hint">Adicione um ponto ou cole o texto pronto. Os blocos colados recebem cores de letra alternadas, que você pode trocar. Linhas que começam com “-” viram tópicos. Com o cronômetro rodando, o ponto atual fica destacado na aba Discurso.</p>
     <div class="blks" id="ptList"></div>
     <div class="tools" style="margin-top:12px">
       <button class="btn" id="ptAdd">+ Adicionar ponto</button>
@@ -309,11 +342,13 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
     </div>
     <div id="ptImp" hidden>
       <div class="f"><label for="ptImpTxt">Cole o esboço inteiro</label>
-        <textarea id="ptImpTxt" rows="8" placeholder="Separe os pontos com uma linha em branco. A primeira linha de cada bloco vira o título.&#10;&#10;Introdução&#10;- Pergunta para despertar interesse&#10;&#10;Quem ressuscitará?&#10;- Atos 24:15"></textarea></div>
-      <div class="tools" style="margin-top:10px"><button class="btn primary" id="ptImpOk">Criar pontos</button><button class="btn" id="ptImpNo">Cancelar</button></div>
+        <textarea id="ptImpTxt" rows="8" placeholder="Deixe uma linha em branco entre os pontos ou parágrafos que quer destacar."></textarea></div>
+      <p class="hint">Separe os blocos por uma linha em branco. Em “Criar pontos”, a primeira linha vira título. Em “Criar parágrafos”, todo o texto fica no corpo do bloco.</p>
+      <div class="tools" style="margin-top:10px"><button class="btn primary" id="ptImpOk">Criar pontos</button><button class="btn" id="ptImpParagrafos">Criar parágrafos</button><button class="btn" id="ptImpNo">Cancelar</button></div>
     </div>
   </div>
 
+  <div class="tools"><button class="btn primary" type="button" id="salvarDiscurso">Salvar discurso no histórico</button></div>
   <div class="card"><h3>Anotações</h3>
     <div class="f"><label for="notas">Observações sobre o discurso ou o orador</label>
       <textarea id="notas" placeholder="Ex.: chegou às 18h40, telefone do orador…"></textarea></div>
@@ -368,7 +403,16 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
 
 <!-- HISTÓRICO -->
 <section id="tab-historico" role="tabpanel" hidden>
-  <p class="hint">Reuniões salvas neste aparelho (com o esboço do discurso). Toque em “Abrir” para carregar.</p>
+  <p class="hint">Discursos e reuniões salvos neste aparelho.</p>
+  <div class="card">
+    <h3>Backup e troca de aparelho</h3>
+    <p class="hint">Salve um arquivo com o esboço atual, histórico e preferências. No outro aparelho, selecione esse arquivo em “Restaurar backup”.</p>
+    <div class="tools">
+      <button class="btn" type="button" id="exportarBackup">Salvar backup</button>
+      <button class="btn" type="button" id="importarBackup">Restaurar backup</button>
+      <input type="file" id="arquivoBackup" accept=".json,application/json" hidden>
+    </div>
+  </div>
   <ul class="hist" id="hist"></ul>
 </section>
 </main>
@@ -382,7 +426,6 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
           set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const KEY="presid-atual",HKEY="presid-hist",CKEY="presid-cfg",FSKEY="presid-fs";
-const hoje=new Date().toISOString().slice(0,10);
 
 /* ---------- Abertura ---------- */
 (function(){const sp=$("splash");let seen=false;try{seen=sessionStorage.getItem("esb-splash")==="1";sessionStorage.setItem("esb-splash","1")}catch(e){}
@@ -391,16 +434,11 @@ const hoje=new Date().toISOString().slice(0,10);
 
 /* ---------- Dados da reunião ---------- */
 const FIELDS=["data","hora","canticoNum","canticoTitulo","tema","orador","congregacao","esbocoNum","assistencia","proxDia","proxTema","condutor","notas","tMeta"];
-const VAZIO={data:hoje,hora:"19:00",canticoNum:"",canticoTitulo:"",tema:"",orador:"",congregacao:"",esbocoNum:"",assistencia:"",proxDia:"domingo",proxTema:"",condutor:"",notas:"",tMeta:"30",pontos:[]};
-const EXEMPLO=Object.assign({},VAZIO,{canticoNum:"31",canticoTitulo:"Ande com Deus!",tema:"Ande com Deus e receba bênçãos",orador:"Agnaldo",assistencia:"113",proxTema:"A ressurreição — por que essa esperança deve ser real para você?",condutor:"Antônio",
-  pontos:[{id:uid(),titulo:"Introdução",min:3,texto:"Exemplo: comece com uma pergunta ao auditório.\n- O que significa andar com alguém?"},
-          {id:uid(),titulo:"O que é andar com Deus",min:10,texto:"- Exemplo de Enoque e Noé\n- Ler e comentar um texto bíblico"},
-          {id:uid(),titulo:"Bênçãos para quem anda com Deus",min:12,texto:"- Paz, orientação e esperança"},
-          {id:uid(),titulo:"Conclusão",min:5,texto:"Recapitular os pontos principais e motivar à ação."}]});
-let S=Object.assign({},VAZIO,ls.get(KEY,EXEMPLO));
+const VAZIO={data:"",hora:"",canticoNum:"",canticoTitulo:"",tema:"",orador:"",congregacao:"",esbocoNum:"",assistencia:"",proxDia:"",proxTema:"",condutor:"",notas:"",tMeta:"",pontos:[]};
+let S=Object.assign({},VAZIO,ls.get(KEY,VAZIO));
 if(!Array.isArray(S.pontos))S.pontos=[];
 const meta=()=>+S.tMeta||30;
-$("tMeta").innerHTML=Array.from({length:43},(_,i)=>i+3).map(m=>`<option value="${m}">${m} minutos</option>`).join("");
+$("tMeta").innerHTML='<option value="">Tempo padrão (30 minutos)</option>'+Array.from({length:43},(_,i)=>i+3).map(m=>`<option value="${m}">${m} minutos</option>`).join("");
 
 const CAMPOS={canticoNum:"Cântico nº",canticoTitulo:"Título do cântico",tema:"Tema",orador:"Orador",congregacao:"Congregação",
   assistencia:"Assistência",proxDia:"Dia da próxima",proxTema:"Próximo tema",condutor:"Condutor",hora:"Horário",data:"Data"};
@@ -460,10 +498,7 @@ const DCORES_PAD={d1:"#1f2328",d2:"#0f766e",d3:"#1f2328",d4:"#1f2328"};
 function applyDiscCores(){const r=document.documentElement.style;
   for(const k in DCORES_PAD){const v=C.discCores[k];$("dcor-"+k).value=v||DCORES_PAD[k];
     if(v){r.setProperty("--u-"+k,v);r.setProperty("--u-"+k+"-dk",dk(v))}else{r.removeProperty("--u-"+k);r.removeProperty("--u-"+k+"-dk")}}}
-const loadedFonts=new Set(["Literata","Atkinson Hyperlegible"]);
 function applyFonte(){const f=FONTES.find(x=>x[0]===C.fonte)||FONTES[0];
-  if(f[0]&&!loadedFonts.has(f[0])){const l=document.createElement("link");l.rel="stylesheet";
-    l.href="https://fonts.googleapis.com/css2?family="+f[0].replace(/ /g,"+")+":wght@400;700&display=swap";document.head.appendChild(l);loadedFonts.add(f[0])}
   document.documentElement.style.setProperty("--u-font",f[2]);$("fonte").value=f[0]}
 $("fonte").innerHTML=FONTES.map(f=>`<option value="${esc(f[0])}">${esc(f[1])}</option>`).join("");
 $("fonte").onchange=e=>{C.fonte=e.target.value;saveC();applyFonte()};
@@ -567,6 +602,11 @@ function renderDiscHead(){
 function renderData(){renderSheet();renderDiscHead();renderPtView();$("hdrDate").textContent=fmtData(S.data);$("miniMeta").textContent="/"+meta()}
 
 /* ---------- Esboço do discurso ---------- */
+const CORES_PONTO=new Map([
+  ["","Sem cor"],["amarelo","Amarelo"],["verde","Verde"],
+  ["azul","Azul"],["rosa","Rosa"],["roxo","Roxo"],["vermelho","Vermelho"],["laranja","Laranja"]
+]);
+const CORES_IMPORTACAO=["azul","vermelho","verde","roxo","laranja","rosa","amarelo"];
 function renderTexto(t){const out=[];let ul=null;
   for(const raw of String(t||"").split("\n")){const l=raw.trim();if(!l){ul=null;continue}
     if(/^[-•*]\s*/.test(l)){if(!ul){ul=[];out.push(ul)}ul.push(l.replace(/^[-•*]\s*/,""))}else{ul=null;out.push(l)}}
@@ -576,30 +616,54 @@ function renderPtView(){let acc=0;
   $("ptSum").textContent=S.pontos.length?`${tot} de ${meta()} min`:"Nenhum ponto ainda";$("ptSum").className="sum"+(tot>meta()?" over":"");
   if(!S.pontos.length){$("ptView").innerHTML=`<p class="empty-state">Nenhum esboço ainda. Adicione os pontos na aba “Editar discurso”.</p>`;curIdx=-2;return}
   $("ptView").innerHTML=S.pontos.map((p,i)=>{const a=acc;acc+=(+p.min||0);
-    return`<div class="ponto" data-i="${i}"><div class="tm">${p.min?`${a}–${acc} min`:"—"}</div>
-      <div class="body"><h4>${esc(p.titulo)||"(sem título)"}</h4>${renderTexto(p.texto)}</div></div>`}).join("");
+    const cor=CORES_PONTO.has(p.cor)&&p.cor?` data-cor="${p.cor}"`:"";
+    const titulo=p.titulo|| (p.paragrafo?"":"(sem título)");
+    const paragrafoSemTempo=p.paragrafo&&!p.min;
+    return`<div class="ponto${paragrafoSemTempo?" paragrafo":""}" data-i="${i}"${cor}>${paragrafoSemTempo?"":`<div class="tm">${p.min?`${a}–${acc} min`:"—"}</div>`}
+      <div class="body">${titulo?`<h4>${esc(titulo)}</h4>`:""}${renderTexto(p.texto)}</div></div>`}).join("");
   curIdx=-2;drawClock()}
 function renderPtEdit(){
   $("ptList").innerHTML=S.pontos.map((p,i)=>`<div class="blk pt-edit" data-id="${p.id}">
     <div class="r"><input data-k="titulo" id="pt-${p.id}" placeholder="Título do ponto" value="${esc(p.titulo)}" aria-label="Título do ponto">
       <input data-k="min" inputmode="numeric" placeholder="min" value="${esc(p.min)}" aria-label="Minutos"></div>
     <textarea data-k="texto" rows="4" placeholder="Textos, perguntas, ilustrações…" aria-label="Conteúdo do ponto">${esc(p.texto)}</textarea>
-    <div class="blk-head"><span class="spacer"></span>
+    <div class="blk-head"><label>Cor da letra
+      <select data-k="cor">${Array.from(CORES_PONTO,([valor,nome])=>`<option value="${valor}"${(p.cor||"")===valor?" selected":""}>${nome}</option>`).join("")}</select>
+    </label><span class="spacer"></span>
       <button class="btn sm" data-act="up"${i===0?" disabled":""} aria-label="Subir">↑</button>
       <button class="btn sm" data-act="down"${i===S.pontos.length-1?" disabled":""} aria-label="Descer">↓</button>
       <span class="confirm"><button class="btn sm danger" data-act="del">Excluir</button></span></div></div>`).join("")||`<p class="empty-state">Nenhum ponto ainda. Toque em “+ Adicionar ponto”.</p>`}
 const ptOf=el=>{const d=el.closest(".pt-edit");return d&&S.pontos.find(p=>p.id===d.dataset.id)};
 $("ptList").addEventListener("input",e=>{const p=ptOf(e.target);if(!p)return;const k=e.target.dataset.k;
+  if(k==="cor")return;
   if(k==="min"){p.min=e.target.value.replace(/[^\d]/g,"");e.target.value=p.min}else p[k]=e.target.value;saveS();renderPtView()});
+$("ptList").addEventListener("change",e=>{
+  const p=ptOf(e.target);
+  if(!p||e.target.dataset.k!=="cor"||!CORES_PONTO.has(e.target.value))return;
+  p.cor=e.target.value;saveS();renderPtView();
+});
 $("ptList").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(!a)return;
   moveAct(S.pontos,a,ptOf(a),()=>{saveS();renderPtEdit();renderPtView()})});
 $("ptAdd").onclick=()=>{const p={id:uid(),titulo:"",min:"",texto:""};S.pontos.push(p);saveS();renderPtEdit();renderPtView();$("pt-"+p.id).focus()};
 $("ptImpBtn").onclick=()=>{$("ptImp").hidden=false;$("ptImpTxt").focus()};
 $("ptImpNo").onclick=()=>{$("ptImp").hidden=true};
-$("ptImpOk").onclick=()=>{const blocos=$("ptImpTxt").value.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
+function importarEsboco(comTitulos){
+  const blocos=$("ptImpTxt").value.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
   if(!blocos.length){toast("Cole algum texto primeiro");return}
-  blocos.forEach(b=>{const l=b.split("\n");S.pontos.push({id:uid(),titulo:l[0].trim(),min:"",texto:l.slice(1).join("\n")})});
-  saveS();$("ptImpTxt").value="";$("ptImp").hidden=true;renderPtEdit();renderPtView();toast(blocos.length+" ponto(s) criado(s)")};
+  let corIndex=CORES_IMPORTACAO.indexOf(S.pontos[S.pontos.length-1]?.cor)+1;
+  for(const bloco of blocos){
+    const [primeiraLinha,...resto]=bloco.split("\n");
+    S.pontos.push({
+      id:uid(),titulo:comTitulos?primeiraLinha.trim():"",min:"",
+      texto:comTitulos?resto.join("\n"):bloco,paragrafo:!comTitulos,
+      cor:CORES_IMPORTACAO[corIndex++%CORES_IMPORTACAO.length]
+    });
+  }
+  saveS();$("ptImpTxt").value="";$("ptImp").hidden=true;
+  renderPtEdit();renderPtView();toast(blocos.length+" bloco(s) criado(s)");
+}
+$("ptImpOk").onclick=()=>importarEsboco(true);
+$("ptImpParagrafos").onclick=()=>importarEsboco(false);
 
 /* ---------- Cronômetro pequeno ---------- */
 let t0=null,acc=0,tick=null,curIdx=-2;
@@ -608,15 +672,35 @@ function drawClock(){const s=Math.floor(elapsed()/1000),m=meta()*60;
   $("miniT").textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
   const st=s>=m?"over":s>=m-300?"warn":"";
   $("miniT").className="mini-t "+st;$("miniBar").className=st;$("miniBar").style.width=Math.min(100,s/m*100)+"%";
-  let idx=-1;if(s>0&&C.crono){let c=0;for(let i=0;i<S.pontos.length;i++){c+=(+S.pontos[i].min||0)*60;if(s<c){idx=i;break}}}
+  let idx=-1;if(s>0&&C.crono&&!leituraAmpliada){let c=0;for(let i=0;i<S.pontos.length;i++){c+=(+S.pontos[i].min||0)*60;if(s<c){idx=i;break}}}
   if(idx!==curIdx){curIdx=idx;document.querySelectorAll("#ptView .ponto").forEach(el=>el.classList.toggle("cur",+el.dataset.i===idx))}}
 $("miniGo").onclick=()=>{if(t0){acc+=Date.now()-t0;t0=null;clearInterval(tick);$("miniGo").textContent="Continuar"}
   else{t0=Date.now();tick=setInterval(drawClock,250);$("miniGo").textContent="Pausar"}drawClock()};
 $("miniReset").onclick=()=>{t0=null;acc=0;clearInterval(tick);$("miniGo").textContent="Iniciar";drawClock()};
+let leituraAmpliada=false;
 function applyCrono(){const show=C.crono&&curTab==="discurso";
-  $("mini").hidden=!show;$("miniProg").hidden=!show;$("hdrDate").hidden=curTab==="discurso";
+  $("mini").hidden=!show||leituraAmpliada;
+  $("miniProg").hidden=!show||leituraAmpliada;$("hdrDate").hidden=curTab==="discurso";
   $("cronoToggle").textContent="Cronômetro: "+(C.crono?"ligado":"desligado");$("cronoToggle").classList.toggle("on",C.crono);curIdx=-2;drawClock()}
 $("cronoToggle").onclick=()=>{C.crono=!C.crono;saveC();applyCrono()};
+
+/* ---------- Leitura ampliada ---------- */
+function setLeituraAmpliada(ativa){
+  leituraAmpliada=ativa;
+  document.body.classList.toggle("leitura-ampliada",ativa);
+  $("sairLeituraAmpliada").hidden=true;
+  applyCrono();
+  $(ativa?"folhaDiscurso":"ampliarEsboco").focus({preventScroll:true});
+}
+$("ampliarEsboco").onclick=()=>setLeituraAmpliada(true);
+$("sairLeituraAmpliada").onclick=()=>setLeituraAmpliada(false);
+$("folhaDiscurso").addEventListener("click",()=>{
+  if(!leituraAmpliada||window.getSelection()?.toString())return;
+  $("sairLeituraAmpliada").hidden=!$("sairLeituraAmpliada").hidden;
+});
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&leituraAmpliada)setLeituraAmpliada(false);
+});
 
 /* ---------- Manter tela ligada ---------- */
 let lock=null;
@@ -642,24 +726,103 @@ document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if
   showTab("editar");const el=$(g.dataset.goto);el.scrollIntoView({block:"center"});el.focus()});
 
 /* ---------- Histórico ---------- */
-const getHist=()=>ls.get(HKEY,[]);
+function getHist(){
+  const h=ls.get(HKEY,[]);
+  if(h.every(reuniao=>reuniao.registroId))return h;
+  const historico=h.map((reuniao,i)=>reuniao.registroId?reuniao:{...reuniao,registroId:"legado-"+i});
+  ls.set(HKEY,historico);
+  return historico;
+}
 function loadMeeting(x){S=Object.assign({},VAZIO,JSON.parse(JSON.stringify(x)));if(!Array.isArray(S.pontos))S.pontos=[];saveS();fillForm();renderData();renderPtEdit()}
-$("btnSalvar").onclick=()=>{const h=getHist().filter(x=>x.data!==S.data);h.unshift(JSON.parse(JSON.stringify(S)));
-  h.sort((a,b)=>(b.data||"").localeCompare(a.data||""));ls.set(HKEY,h);toast("Reunião salva no histórico")};
+function salvarNoHistorico(){
+  if(!S.registroId)S.registroId=uid()+"-"+uid();
+  const h=getHist().filter(x=>x.registroId!==S.registroId);
+  h.unshift(JSON.parse(JSON.stringify(S)));
+  h.sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+  try{
+    localStorage.setItem(HKEY,JSON.stringify(h));saveS();
+    toast("Salvo no histórico");
+  }catch{toast("Não foi possível salvar no aparelho")}
+}
+$("btnSalvar").onclick=salvarNoHistorico;
+$("salvarDiscurso").onclick=salvarNoHistorico;
 $("btnNova").onclick=()=>{$("novaConfirm").hidden=false};
 $("novaNao").onclick=()=>{$("novaConfirm").hidden=true};
-$("novaSim").onclick=()=>{loadMeeting(VAZIO);$("novaConfirm").hidden=true;toast("Campos limpos")};
+$("novaSim").onclick=()=>{loadMeeting(VAZIO);$("miniReset").onclick();$("novaConfirm").hidden=true;toast("Campos limpos")};
 function renderHist(){const h=getHist(),ul=$("hist");
   if(!h.length){ul.innerHTML=`<li class="empty-state" style="display:block">Nenhuma reunião salva ainda. Em “Editar presidência”, toque em “Salvar no histórico”.</li>`;return}
   ul.innerHTML=h.map((x,i)=>`<li><div class="info"><b>${esc(fmtData(x.data))}</b>
     <span>${esc(x.tema||"Sem tema")} · ${esc(x.orador||"—")}${x.assistencia?" · "+esc(x.assistencia)+" pessoas":""}${x.pontos&&x.pontos.length?" · esboço com "+x.pontos.length+" pontos":""}</span></div>
-    <button class="btn sm" data-open="${i}">Abrir</button>
+    <button class="btn sm" data-open="${i}">Abrir discurso</button>
+    <button class="btn sm" data-open="${i}" data-presidencia>Abrir presidência</button>
     <span class="confirm"><button class="btn sm danger" data-del="${i}">Excluir</button></span></li>`).join("")}
 $("hist").addEventListener("click",e=>{const h=getHist();
-  const o=e.target.closest("[data-open]");if(o){loadMeeting(h[+o.dataset.open]);showTab("presidencia");toast("Reunião carregada");return}
+  const o=e.target.closest("[data-open]");if(o){loadMeeting(h[+o.dataset.open]);$("miniReset").onclick();showTab(o.hasAttribute("data-presidencia")?"presidencia":"discurso");toast("Reunião carregada");return}
   const d=e.target.closest("[data-del]");if(d){d.parentElement.innerHTML=`Excluir? <button class="btn sm danger" data-delok="${d.dataset.del}">Sim</button><button class="btn sm" data-delno>Não</button>`;return}
   const ok=e.target.closest("[data-delok]");if(ok){h.splice(+ok.dataset.delok,1);ls.set(HKEY,h);renderHist();toast("Excluída");return}
   if(e.target.closest("[data-delno]"))renderHist()});
+
+/* ---------- Backup local ---------- */
+const BACKUP_TIPO="esboco-eletronico";
+const LIMITE_BACKUP=10*1024*1024;
+const objeto=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
+const idSeguro=v=>typeof v==="string"&&/^[a-z0-9-]+$/i.test(v);
+const corHex=v=>typeof v==="string"&&/^#[0-9a-f]{6}$/i.test(v);
+function backupValido(b){
+  if(!objeto(b)||b.tipo!==BACKUP_TIPO||b.versao!==1)return false;
+  const reuniao=r=>objeto(r)&&FIELDS.every(k=>typeof r[k]==="string")&&
+    (r.registroId===undefined||idSeguro(r.registroId))&&Array.isArray(r.pontos)&&
+    r.pontos.every(p=>objeto(p)&&idSeguro(p.id)&&typeof p.titulo==="string"&&
+      typeof p.texto==="string"&&(typeof p.min==="string"||Number.isFinite(p.min))&&
+      (p.cor===undefined||CORES_PONTO.has(p.cor)));
+  const c=b.preferencias;
+  return reuniao(b.atual)&&Array.isArray(b.historico)&&b.historico.every(reuniao)&&
+    objeto(c)&&objeto(c.cores)&&Object.values(c.cores).every(corHex)&&
+    objeto(c.discCores)&&Object.values(c.discCores).every(corHex)&&
+    Array.isArray(c.blocos)&&c.blocos.every(x=>objeto(x)&&idSeguro(x.id)&&
+      Object.hasOwn(TIPOS,x.tipo)&&Object.hasOwn(CORNOME,x.cor)&&typeof x.texto==="string")&&
+    ["auto","light","dark"].includes(c.fundoPres)&&["auto","light","dark"].includes(c.fundoDisc)&&
+    typeof c.fonte==="string"&&typeof c.crono==="boolean"&&typeof c.marca==="boolean"&&
+    Number.isFinite(b.tamanhoLetra)&&b.tamanhoLetra>=.85&&b.tamanhoLetra<=2.4;
+}
+function gravarBackup(b){
+  const dados=[[KEY,b.atual],[HKEY,b.historico],[CKEY,b.preferencias],[FSKEY,b.tamanhoLetra]];
+  const anteriores=dados.map(([chave])=>[chave,localStorage.getItem(chave)]);
+  let gravados=0;
+  try{
+    for(const [chave,valor] of dados){localStorage.setItem(chave,JSON.stringify(valor));gravados++}
+  }catch(erro){
+    for(const [chave,valor] of anteriores.slice(0,gravados)){
+      if(valor===null)localStorage.removeItem(chave);
+      else localStorage.setItem(chave,valor);
+    }
+    throw erro;
+  }
+}
+$("exportarBackup").onclick=()=>{
+  const b={tipo:BACKUP_TIPO,versao:1,atual:S,historico:getHist(),preferencias:C,tamanhoLetra:fs};
+  const arquivo=new Blob([JSON.stringify(b,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(arquivo);
+  const link=document.createElement("a");
+  link.href=url;link.download="esboco-eletronico-backup-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+};
+$("importarBackup").onclick=()=>$("arquivoBackup").click();
+$("arquivoBackup").onchange=async event=>{
+  const arquivo=event.target.files[0];
+  event.target.value="";
+  if(!arquivo)return;
+  let backup;
+  try{
+    if(arquivo.size>LIMITE_BACKUP)throw new Error();
+    backup=JSON.parse(await arquivo.text());
+    if(!backupValido(backup))throw new Error();
+  }catch{toast("Arquivo de backup inválido ou incompatível");return}
+  if(!confirm("Restaurar este backup? O esboço atual, o histórico e as preferências deste aparelho serão substituídos."))return;
+  try{gravarBackup(backup)}catch{toast("Não foi possível restaurar o backup neste aparelho");return}
+  location.reload();
+};
 
 let tt;function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on"),2200)}
 
