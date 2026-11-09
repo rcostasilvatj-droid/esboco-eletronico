@@ -363,6 +363,7 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
 <!-- EDITAR DISCURSO -->
 <section id="tab-editar-discurso" role="tabpanel" hidden>
   <div class="card"><h3>Tema e tempo</h3><div class="grid">
+    <div class="f"><label for="numeroDiscurso">Número do esboço</label><input id="numeroDiscurso" inputmode="numeric" placeholder="Ex.: 123"></div>
     <div class="f full"><label for="temaDiscurso">Tema do discurso</label>
       <input id="temaDiscurso" placeholder="Digite o título que aparece no esboço"></div>
     <div class="f"><label for="tMeta">Tempo do discurso</label>
@@ -398,7 +399,9 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
     <div class="blks" id="ptList"></div>
   </div>
 
-  <div class="tools"><button class="btn primary" type="button" id="salvarDiscurso">Salvar discurso no histórico</button></div>
+  <div class="tools"><button class="btn primary" type="button" id="salvarDiscurso">Salvar discurso no histórico</button><button class="btn" id="novoDiscurso" type="button">Novo discurso</button></div>
+  <div class="confirm" id="confirmarSalvarDiscurso" hidden><p>Este esboço já está salvo. Deseja atualizar o existente ou salvar como novo discurso?</p><div class="tools"><button class="btn primary" type="button" id="atualizarDiscurso">Atualizar existente</button><button class="btn" type="button" id="copiarDiscurso">Salvar como novo</button><button class="btn" type="button" id="cancelarSalvarDiscurso">Cancelar</button></div></div>
+  <div class="confirm" id="confirmarNovoDiscurso" hidden><p>Iniciar outro discurso? Salve o atual antes de continuar.</p><div class="tools"><button class="btn danger" type="button" id="limparDiscurso">Começar novo</button><button class="btn" type="button" id="cancelarNovoDiscurso">Cancelar</button></div></div>
   <div class="card"><h3>Anotações</h3>
     <div class="f"><label for="notas">Observações sobre o discurso ou o orador</label>
       <textarea id="notas" placeholder="Ex.: chegou às 18h40, telefone do orador…"></textarea></div>
@@ -463,7 +466,8 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
       <input type="file" id="arquivoBackup" accept=".json,application/json" hidden>
     </div>
   </div>
-  <ul class="hist" id="hist"></ul>
+  <div class="card"><h3>Discursos salvos</h3><ul class="hist" id="discHist"></ul></div>
+  <div class="card"><h3>Presidências salvas</h3><ul class="hist" id="hist"></ul></div>
 </section>
 </main>
 <footer class="foot">by Ricardo Silva</footer>
@@ -475,7 +479,7 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const uid=()=>Math.random().toString(36).slice(2,9);
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
           set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const KEY="presid-atual",HKEY="presid-hist",CKEY="presid-cfg",FSKEY="presid-fs";
+const KEY="presid-atual",HKEY="presid-hist",DKEY="discursos-hist",DCUR="discurso-atual-v2",CKEY="presid-cfg",FSKEY="presid-fs";
 
 /* ---------- Abertura ---------- */
 (function(){const sp=$("splash");let seen=false;try{seen=sessionStorage.getItem("esb-splash")==="1";sessionStorage.setItem("esb-splash","1")}catch(e){}
@@ -487,7 +491,36 @@ const FIELDS=["data","hora","canticoNum","canticoTitulo","tema","orador","congre
 const VAZIO={data:"",hora:"",canticoNum:"",canticoTitulo:"",tema:"",orador:"",congregacao:"",esbocoNum:"",assistencia:"",proxDia:"",proxTema:"",condutor:"",notas:"",tMeta:"",pontos:[]};
 let S=Object.assign({},VAZIO,ls.get(KEY,VAZIO));
 if(!Array.isArray(S.pontos))S.pontos=[];
-const meta=()=>+S.tMeta||30;
+/* Migração não destrutiva: conserva o discurso legado para a nova biblioteca. */
+const DVAZIO={tema:"",esbocoNum:"",tMeta:"",pontos:[],id:""};
+let D=ls.get(DCUR,null);
+if(!D||typeof D!=="object"||!Array.isArray(D.pontos)){
+  D={tema:S.tema||"",esbocoNum:S.esbocoNum||"",tMeta:S.tMeta||"",pontos:JSON.parse(JSON.stringify(S.pontos)),id:""};
+  ls.set(DCUR,D);
+}
+const saveD=()=>ls.set(DCUR,D);
+/* Preserva esboços que foram salvos anteriormente junto às reuniões. */
+(function migrarDiscursosLegados(){
+  const chave="discursos-migrados-v2";
+  if(localStorage.getItem(chave)==="1")return;
+  try{
+    const anteriores=ls.get(HKEY,[]),existentes=ls.get(DKEY,[]);
+    if(!Array.isArray(anteriores)||!Array.isArray(existentes))return;
+    const ids=new Set(existentes.map(x=>x.id));
+    for(const [i,item] of anteriores.entries()){
+      if(!item||!Array.isArray(item.pontos)||!item.pontos.length)continue;
+      const id="legado-"+(item.registroId||i);
+      if(ids.has(id))continue;
+      existentes.push({id,tema:String(item.tema||""),esbocoNum:String(item.esbocoNum||""),
+        tMeta:String(item.tMeta||""),pontos:JSON.parse(JSON.stringify(item.pontos)),
+        salvoEm:new Date().toISOString()});
+      ids.add(id);
+    }
+    localStorage.setItem(DKEY,JSON.stringify(existentes));
+    localStorage.setItem(chave,"1");
+  }catch(e){/* Falha de armazenamento: mantemos intactos os dados antigos. */}
+})();
+const meta=()=>+D.tMeta||30;
 $("tMeta").innerHTML='<option value="">Tempo padrão (30 minutos)</option>'+Array.from({length:43},(_,i)=>i+3).map(m=>`<option value="${m}">${m} minutos</option>`).join("");
 
 const CAMPOS={canticoNum:"Cântico nº",canticoTitulo:"Título do cântico",tema:"Tema",orador:"Orador",congregacao:"Congregação",
@@ -644,20 +677,20 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-fs]");if(!
 
 /* ---------- Dados (formulários) ---------- */
 function fillForm(){
-  FIELDS.forEach(k=>{const el=$(k);if(el)el.value=S[k]??""});
-  $("temaDiscurso").value=S.tema??"";
+  FIELDS.filter(k=>k!=="tMeta").forEach(k=>{const el=$(k);if(el)el.value=S[k]??""});
+  $("temaDiscurso").value=D.tema??"";
+  $("numeroDiscurso").value=D.esbocoNum??"";
+  $("tMeta").value=D.tMeta??"";
 }
-FIELDS.forEach(k=>{const el=$(k);if(!el)return;el.addEventListener("input",()=>{S[k]=el.value;if(k==="tema")$("temaDiscurso").value=el.value;saveS();renderData()});
+FIELDS.filter(k=>k!=="tMeta").forEach(k=>{const el=$(k);if(!el)return;el.addEventListener("input",()=>{S[k]=el.value;saveS();renderData()});
   if(el.tagName==="SELECT")el.addEventListener("change",()=>{S[k]=el.value;saveS();renderData()})});
-$("temaDiscurso").addEventListener("input",e=>{
-  S.tema=e.target.value;
-  $("tema").value=S.tema;
-  saveS();renderData();
-});
+$("numeroDiscurso").addEventListener("input",e=>{D.esbocoNum=e.target.value;saveD();renderData()});
+$("temaDiscurso").addEventListener("input",e=>{D.tema=e.target.value;saveD();renderData()});
+$("tMeta").addEventListener("change",()=>{D.tMeta=$("tMeta").value;saveD();renderData()});
 function renderDiscHead(){
-  const tema=S.tema.trim();
+  const tema=D.tema.trim();
   $("discHead").innerHTML=`${tema?`<p class="t">${esc(tema)}</p>`:""}
-    <div class="m">${S.esbocoNum?`Esboço nº ${esc(S.esbocoNum)} · `:""}${meta()} min</div>`;
+    <div class="m">${D.esbocoNum?`Esboço nº ${esc(D.esbocoNum)} · `:""}${meta()} min</div>`;
 }
 function renderData(){renderSheet();renderDiscHead();renderPtView();$("hdrDate").textContent=fmtData(S.data);$("miniMeta").textContent="/"+meta()}
 
@@ -678,10 +711,10 @@ function renderTexto(t,faixas){const out=[];let ul=null,pos=0;
   }
   return out.map(x=>Array.isArray(x)?`<ul>${x.map(i=>`<li>${i}</li>`).join("")}</ul>`:`<p>${x}</p>`).join("")}
 function renderPtView(){let acc=0;
-  const tot=S.pontos.reduce((s,p)=>s+(+p.min||0),0);
-  $("ptSum").textContent=S.pontos.length?`${tot} de ${meta()} min`:"Nenhum ponto ainda";$("ptSum").className="sum"+(tot>meta()?" over":"");
-  if(!S.pontos.length){$("ptView").innerHTML=`<p class="empty-state">Nenhum esboço ainda. Adicione os pontos na aba “Editar discurso”.</p>`;curIdx=-2;return}
-  $("ptView").innerHTML=S.pontos.map((p,i)=>{const a=acc;acc+=(+p.min||0);
+  const tot=D.pontos.reduce((s,p)=>s+(+p.min||0),0);
+  $("ptSum").textContent=D.pontos.length?`${tot} de ${meta()} min`:"Nenhum ponto ainda";$("ptSum").className="sum"+(tot>meta()?" over":"");
+  if(!D.pontos.length){$("ptView").innerHTML=`<p class="empty-state">Nenhum esboço ainda. Adicione os pontos na aba “Editar discurso”.</p>`;curIdx=-2;return}
+  $("ptView").innerHTML=D.pontos.map((p,i)=>{const a=acc;acc+=(+p.min||0);
     const cor=CORES_PONTO.has(p.cor)&&p.cor?` data-cor="${p.cor}"`:"";
     const titulo=p.titulo|| (p.paragrafo?"":"(sem título)");
     const paragrafoSemTempo=p.paragrafo&&!p.min;
@@ -690,7 +723,7 @@ function renderPtView(){let acc=0;
   curIdx=-2;drawClock()}
 const temCoresOriginais=p=>Boolean(p.coresTitulo?.length||p.coresTexto?.length);
 function renderPtEdit(){
-  $("ptList").innerHTML=S.pontos.map((p,i)=>`<div class="blk pt-edit" data-id="${p.id}">
+  $("ptList").innerHTML=D.pontos.map((p,i)=>`<div class="blk pt-edit" data-id="${p.id}">
     <div class="r"><input data-k="titulo" id="pt-${p.id}" placeholder="Título do ponto" value="${esc(p.titulo)}" aria-label="Título do ponto">
       <input data-k="min" inputmode="numeric" placeholder="min" value="${esc(p.min)}" aria-label="Minutos"></div>
     <div class="editor-ponto"><textarea data-k="texto" rows="4" placeholder="Textos, perguntas, ilustrações…" aria-label="Conteúdo do ponto">${esc(p.texto)}</textarea><button class="btn sm expandir-ponto" type="button" data-expandir-ponto aria-label="Ampliar editor deste ponto">⛶ Ampliar texto</button></div>
@@ -698,20 +731,20 @@ function renderPtEdit(){
       <select data-k="cor">${temCoresOriginais(p)?'<option value="original" selected disabled>Cores originais</option>':""}${Array.from(CORES_PONTO,([valor,nome])=>`<option value="${valor}"${!temCoresOriginais(p)&&(p.cor||"")===valor?" selected":""}>${nome}</option>`).join("")}</select>
     </label><span class="spacer"></span>
       <button class="btn sm" data-act="up"${i===0?" disabled":""} aria-label="Subir">↑</button>
-      <button class="btn sm" data-act="down"${i===S.pontos.length-1?" disabled":""} aria-label="Descer">↓</button>
+      <button class="btn sm" data-act="down"${i===D.pontos.length-1?" disabled":""} aria-label="Descer">↓</button>
       <span class="confirm"><button class="btn sm danger" data-act="del">Excluir</button></span></div></div>`).join("")||`<p class="empty-state">Nenhum ponto ainda. Toque em “+ Adicionar ponto”.</p>`}
-const ptOf=el=>{const d=el.closest(".pt-edit");return d&&S.pontos.find(p=>p.id===d.dataset.id)};
+const ptOf=el=>{const d=el.closest(".pt-edit");return d&&D.pontos.find(p=>p.id===d.dataset.id)};
 $("ptList").addEventListener("input",e=>{const p=ptOf(e.target);if(!p)return;const k=e.target.dataset.k;
   if(k==="cor")return;
   if(k==="titulo"&&p.coresTitulo)p.coresTitulo=ajustarCores(p.titulo,e.target.value,p.coresTitulo);
   if(k==="texto"&&p.coresTexto)p.coresTexto=ajustarCores(p.texto,e.target.value,p.coresTexto);
-  if(k==="min"){p.min=e.target.value.replace(/[^\d]/g,"");e.target.value=p.min}else p[k]=e.target.value;saveS();renderPtView()});
+  if(k==="min"){p.min=e.target.value.replace(/[^\d]/g,"");e.target.value=p.min}else p[k]=e.target.value;saveD();renderPtView()});
 $("ptList").addEventListener("change",e=>{
   const p=ptOf(e.target);
   if(!p||e.target.dataset.k!=="cor"||!CORES_PONTO.has(e.target.value))return;
   p.cor=e.target.value;delete p.coresTitulo;delete p.coresTexto;
   e.target.querySelector('option[value="original"]')?.remove();
-  saveS();renderPtView();
+  saveD();renderPtView();
 });
 /* Editor em tela ampla, sincronizado com o campo original e o armazenamento existente. */
 const editorAmplo=document.createElement("dialog");
@@ -743,8 +776,8 @@ $("ptList").addEventListener("click",e=>{
   $("textoEditorAmplo").focus();
 });
 $("ptList").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(!a)return;
-  moveAct(S.pontos,a,ptOf(a),()=>{saveS();renderPtEdit();renderPtView()})});
-$("ptAdd").onclick=()=>{const p={id:uid(),titulo:"",min:"",texto:""};S.pontos.push(p);saveS();renderPtEdit();renderPtView();$("pt-"+p.id).focus()};
+  moveAct(D.pontos,a,ptOf(a),()=>{saveD();renderPtEdit();renderPtView()})});
+$("ptAdd").onclick=()=>{const p={id:uid(),titulo:"",min:"",texto:""};D.pontos.push(p);saveD();renderPtEdit();renderPtView();$("pt-"+p.id).focus()};
 $("ptImpBtn").onclick=()=>{$("ptImp").hidden=false;$("ptImpTxt").focus()};
 $("ptImpNo").onclick=()=>{$("ptImp").hidden=true};
 // Somente texto e cores são extraídos. Nenhum nó colado entra no documento.
@@ -895,7 +928,7 @@ function importarEsboco(comTitulos){
   const blocos=valor.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
   if(!blocos.length){toast("Cole algum texto primeiro");return}
   const cores=colagemColorida?.texto===valor?colagemColorida.faixas:[];
-  let pos=0,corIndex=CORES_IMPORTACAO.indexOf(S.pontos[S.pontos.length-1]?.cor)+1;
+  let pos=0,corIndex=CORES_IMPORTACAO.indexOf(D.pontos[D.pontos.length-1]?.cor)+1;
   for(const bloco of blocos){
     const inicio=valor.indexOf(bloco,pos);
     pos=inicio+bloco.length;
@@ -908,9 +941,9 @@ function importarEsboco(comTitulos){
       cor:cores.length?"":CORES_IMPORTACAO[corIndex++%CORES_IMPORTACAO.length]};
     if(coresTitulo.length)ponto.coresTitulo=coresTitulo;
     if(coresTexto.length)ponto.coresTexto=coresTexto;
-    S.pontos.push(ponto);
+    D.pontos.push(ponto);
   }
-  saveS();campoColado.value="";colagemColorida=null;$("ptImpCores").hidden=true;$("ptImp").hidden=true;
+  saveD();campoColado.value="";colagemColorida=null;$("ptImpCores").hidden=true;$("ptImp").hidden=true;
   renderPtEdit();renderPtView();toast(blocos.length+" bloco(s) criado(s)");
 }
 $("ptImpOk").onclick=()=>importarEsboco(true);
@@ -923,7 +956,7 @@ function drawClock(){const s=Math.floor(elapsed()/1000),m=meta()*60;
   $("miniT").textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
   const st=s>=m?"over":s>=m-300?"warn":"";
   $("miniT").className="mini-t "+st;$("miniBar").className=st;$("miniBar").style.width=Math.min(100,s/m*100)+"%";
-  let idx=-1;if(s>0&&C.crono&&!leituraAmpliada){let c=0;for(let i=0;i<S.pontos.length;i++){c+=(+S.pontos[i].min||0)*60;if(s<c){idx=i;break}}}
+  let idx=-1;if(s>0&&C.crono&&!leituraAmpliada){let c=0;for(let i=0;i<D.pontos.length;i++){c+=(+D.pontos[i].min||0)*60;if(s<c){idx=i;break}}}
   if(idx!==curIdx){curIdx=idx;document.querySelectorAll("#ptView .ponto").forEach(el=>el.classList.toggle("cur",+el.dataset.i===idx))}}
 $("miniGo").onclick=()=>{if(t0){acc+=Date.now()-t0;t0=null;clearInterval(tick);$("miniGo").textContent="Continuar"}
   else{t0=Date.now();tick=setInterval(drawClock,250);$("miniGo").textContent="Pausar"}drawClock()};
@@ -985,7 +1018,7 @@ function showTab(name){
   curTab=name;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===name));
   TABS.forEach(t=>$("tab-"+t).hidden=t!==name);
-  if(name==="historico")renderHist();
+  if(name==="historico"){renderHist();renderDiscHist()}
   if(name==="editar-discurso")renderPtEdit();
   applyFundo();applyCrono();
   const sel=document.querySelector(`nav.tabs button[data-tab="${name}"]`);try{sel.scrollIntoView({inline:"nearest",block:"nearest"})}catch(e){}
@@ -1002,11 +1035,11 @@ function getHist(){
   ls.set(HKEY,historico);
   return historico;
 }
-function loadMeeting(x){S=Object.assign({},VAZIO,JSON.parse(JSON.stringify(x)));if(!Array.isArray(S.pontos))S.pontos=[];saveS();fillForm();renderData();renderPtEdit()}
+function loadMeeting(x){S=Object.assign({},VAZIO,JSON.parse(JSON.stringify(x)));saveS();fillForm();renderData();renderPtEdit()}
 function salvarNoHistorico(){
   if(!S.registroId)S.registroId=uid()+"-"+uid();
   const h=getHist().filter(x=>x.registroId!==S.registroId);
-  h.unshift(JSON.parse(JSON.stringify(S)));
+  h.unshift(JSON.parse(JSON.stringify({...S,pontos:[],tMeta:""})));
   h.sort((a,b)=>(b.data||"").localeCompare(a.data||""));
   try{
     localStorage.setItem(HKEY,JSON.stringify(h));saveS();
@@ -1014,19 +1047,76 @@ function salvarNoHistorico(){
   }catch{toast("Não foi possível salvar no aparelho")}
 }
 $("btnSalvar").onclick=salvarNoHistorico;
-$("salvarDiscurso").onclick=salvarNoHistorico;
+/* Biblioteca independente de discursos: não modifica o histórico da Presidência. */
+const getDiscHist=()=>{const h=ls.get(DKEY,[]);return Array.isArray(h)?h:[]};
+const discursoId=()=>uid()+"-"+uid();
+const discursoSnapshot=()=>({...JSON.parse(JSON.stringify(D)),tema:D.tema.trim(),esbocoNum:D.esbocoNum.trim(),salvoEm:new Date().toISOString()});
+function gravarDiscurso(modo,alvo){
+  const h=getDiscHist(),copia=discursoSnapshot();
+  copia.id=modo==="atualizar"&&alvo?alvo.id:discursoId();
+  if(modo==="atualizar"&&alvo){const i=h.findIndex(x=>x.id===alvo.id);if(i!==-1)h.splice(i,1)}
+  h.unshift(copia);
+  try{
+    localStorage.setItem(DKEY,JSON.stringify(h));D.id=copia.id;saveD();
+    $("confirmarSalvarDiscurso").hidden=true;
+    toast(modo==="atualizar"?"Discurso atualizado":"Novo discurso salvo no histórico");
+  }catch{toast("Não foi possível salvar o discurso")}
+}
+let alvoDiscurso=null;
+$("salvarDiscurso").onclick=()=>{
+  if(!D.tema.trim()){toast("Informe o tema do discurso");$("temaDiscurso").focus();return}
+  if(!D.pontos.length){toast("Adicione pelo menos um ponto");return}
+  const h=getDiscHist(),titulo=D.tema.trim().toLocaleLowerCase("pt-BR");
+  alvoDiscurso=h.find(x=>x.id===D.id)||h.find(x=>x.tema.toLocaleLowerCase("pt-BR")===titulo&&x.esbocoNum===D.esbocoNum.trim())||null;
+  if(alvoDiscurso){$("confirmarSalvarDiscurso").hidden=false;$("atualizarDiscurso").focus()}
+  else gravarDiscurso("novo");
+};
+$("atualizarDiscurso").onclick=()=>{if(alvoDiscurso)gravarDiscurso("atualizar",alvoDiscurso)};
+$("copiarDiscurso").onclick=()=>gravarDiscurso("novo");
+$("cancelarSalvarDiscurso").onclick=()=>{$("confirmarSalvarDiscurso").hidden=true;alvoDiscurso=null};
+$("novoDiscurso").onclick=()=>{$("confirmarNovoDiscurso").hidden=false};
+$("cancelarNovoDiscurso").onclick=()=>{$("confirmarNovoDiscurso").hidden=true};
+$("limparDiscurso").onclick=()=>{
+  D=JSON.parse(JSON.stringify(DVAZIO));saveD();fillForm();renderData();renderPtEdit();
+  $("confirmarNovoDiscurso").hidden=true;$("confirmarSalvarDiscurso").hidden=true;toast("Novo discurso iniciado");
+};
+function renderDiscHist(){
+  const h=getDiscHist();
+  $("discHist").innerHTML=h.length?h.map((x,i)=>`<li><div class="info"><b>${x.esbocoNum?"Nº "+esc(x.esbocoNum)+" — ":""}${esc(x.tema||"Sem tema")}</b>
+  <span>${x.pontos.length} ponto(s) · ${esc(new Date(x.salvoEm).toLocaleDateString("pt-BR"))}</span></div>
+  <button class="btn sm" data-disc-open="${i}">Abrir discurso</button>
+  <span class="confirm"><button class="btn sm danger" data-disc-del="${i}">Excluir</button></span></li>`).join(""):'<li class="empty-state">Nenhum discurso salvo ainda.</li>';
+}
+$("discHist").addEventListener("click",e=>{
+  const h=getDiscHist(),abrir=e.target.closest("[data-disc-open]");
+  if(abrir){
+    const x=h[Number(abrir.dataset.discOpen)];if(!x)return;
+    D=JSON.parse(JSON.stringify(x));saveD();fillForm();renderData();renderPtEdit();$("miniReset").onclick();
+    showTab("discurso");toast("Discurso carregado");return;
+  }
+  const del=e.target.closest("[data-disc-del]");
+  if(del){del.parentElement.innerHTML=`Excluir este discurso? <button class="btn sm danger" data-disc-confirm="${del.dataset.discDel}">Sim</button><button class="btn sm" data-disc-cancel>Não</button>`;return}
+  const conf=e.target.closest("[data-disc-confirm]");
+  if(conf){
+    const i=Number(conf.dataset.discConfirm),x=h[i];if(!x)return;
+    h.splice(i,1);
+    try{localStorage.setItem(DKEY,JSON.stringify(h));if(D.id===x.id){D.id="";saveD()}renderDiscHist();toast("Discurso excluído")}
+    catch{toast("Não foi possível excluir")}
+    return;
+  }
+  if(e.target.closest("[data-disc-cancel]"))renderDiscHist();
+});
 $("btnNova").onclick=()=>{$("novaConfirm").hidden=false};
 $("novaNao").onclick=()=>{$("novaConfirm").hidden=true};
 $("novaSim").onclick=()=>{loadMeeting(VAZIO);$("miniReset").onclick();$("novaConfirm").hidden=true;toast("Campos limpos")};
 function renderHist(){const h=getHist(),ul=$("hist");
-  if(!h.length){ul.innerHTML=`<li class="empty-state" style="display:block">Nenhuma reunião salva ainda. Em “Editar presidência”, toque em “Salvar no histórico”.</li>`;return}
+  if(!h.length){ul.innerHTML=`<li class="empty-state" style="display:block">Nenhuma presidência salva ainda.</li>`;return}
   ul.innerHTML=h.map((x,i)=>`<li><div class="info"><b>${esc(fmtData(x.data))}</b>
     <span>${esc(x.tema||"Sem tema")} · ${esc(x.orador||"—")}${x.assistencia?" · "+esc(x.assistencia)+" pessoas":""}${x.pontos&&x.pontos.length?" · esboço com "+x.pontos.length+" pontos":""}</span></div>
-    <button class="btn sm" data-open="${i}">Abrir discurso</button>
-    <button class="btn sm" data-open="${i}" data-presidencia>Abrir presidência</button>
+    <button class="btn sm" data-open="${i}">Abrir presidência</button>
     <span class="confirm"><button class="btn sm danger" data-del="${i}">Excluir</button></span></li>`).join("")}
 $("hist").addEventListener("click",e=>{const h=getHist();
-  const o=e.target.closest("[data-open]");if(o){loadMeeting(h[+o.dataset.open]);$("miniReset").onclick();showTab(o.hasAttribute("data-presidencia")?"presidencia":"discurso");toast("Reunião carregada");return}
+  const o=e.target.closest("[data-open]");if(o){loadMeeting(h[+o.dataset.open]);$("miniReset").onclick();showTab("presidencia");toast("Reunião carregada");return}
   const d=e.target.closest("[data-del]");if(d){d.parentElement.innerHTML=`Excluir? <button class="btn sm danger" data-delok="${d.dataset.del}">Sim</button><button class="btn sm" data-delno>Não</button>`;return}
   const ok=e.target.closest("[data-delok]");if(ok){h.splice(+ok.dataset.delok,1);ls.set(HKEY,h);renderHist();toast("Excluída");return}
   if(e.target.closest("[data-delno]"))renderHist()});
@@ -1038,7 +1128,7 @@ const objeto=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
 const idSeguro=v=>typeof v==="string"&&/^[a-z0-9-]+$/i.test(v);
 const corHex=v=>typeof v==="string"&&/^#[0-9a-f]{6}$/i.test(v);
 function backupValido(b){
-  if(!objeto(b)||b.tipo!==BACKUP_TIPO||b.versao!==1)return false;
+  if(!objeto(b)||b.tipo!==BACKUP_TIPO||![1,2].includes(b.versao))return false;
   const reuniao=r=>objeto(r)&&FIELDS.every(k=>typeof r[k]==="string")&&
     (r.registroId===undefined||idSeguro(r.registroId))&&Array.isArray(r.pontos)&&
     r.pontos.every(p=>objeto(p)&&idSeguro(p.id)&&typeof p.titulo==="string"&&
@@ -1046,6 +1136,12 @@ function backupValido(b){
       (p.cor===undefined||CORES_PONTO.has(p.cor))&&
       (p.coresTitulo===undefined||faixasValidas(p.coresTitulo,p.titulo.length))&&
       (p.coresTexto===undefined||faixasValidas(p.coresTexto,p.texto.length)));
+  if(b.versao===2&&(!Array.isArray(b.discursos)||!b.discursos.every(d=>
+    objeto(d)&&idSeguro(d.id)&&typeof d.tema==="string"&&typeof d.esbocoNum==="string"&&typeof d.tMeta==="string"&&
+    typeof d.salvoEm==="string"&&Array.isArray(d.pontos)&&reuniao({...b.atual,pontos:d.pontos}))||
+    !objeto(b.discursoAtual)||typeof b.discursoAtual.tema!=="string"||
+    typeof b.discursoAtual.esbocoNum!=="string"||typeof b.discursoAtual.tMeta!=="string"||
+    !Array.isArray(b.discursoAtual.pontos)||!reuniao({...b.atual,pontos:b.discursoAtual.pontos})))return false;
   const c=b.preferencias;
   return reuniao(b.atual)&&Array.isArray(b.historico)&&b.historico.every(reuniao)&&
     objeto(c)&&objeto(c.cores)&&Object.values(c.cores).every(corHex)&&
@@ -1058,6 +1154,8 @@ function backupValido(b){
 }
 function gravarBackup(b){
   const dados=[[KEY,b.atual],[HKEY,b.historico],[CKEY,b.preferencias],[FSKEY,b.tamanhoLetra]];
+  if(b.versao===2)dados.push([DKEY,b.discursos],[DCUR,b.discursoAtual]);
+  else dados.push([DKEY,[]],[DCUR,{tema:b.atual.tema||"",esbocoNum:b.atual.esbocoNum||"",tMeta:b.atual.tMeta||"",pontos:b.atual.pontos||[],id:""}]);
   const anteriores=dados.map(([chave])=>[chave,localStorage.getItem(chave)]);
   let gravados=0;
   try{
@@ -1071,7 +1169,7 @@ function gravarBackup(b){
   }
 }
 $("exportarBackup").onclick=()=>{
-  const b={tipo:BACKUP_TIPO,versao:1,atual:S,historico:getHist(),preferencias:C,tamanhoLetra:fs};
+  const b={tipo:BACKUP_TIPO,versao:2,atual:S,historico:getHist(),discursos:getDiscHist(),discursoAtual:D,preferencias:C,tamanhoLetra:fs};
   const arquivo=new Blob([JSON.stringify(b,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(arquivo);
   const link=document.createElement("a");
