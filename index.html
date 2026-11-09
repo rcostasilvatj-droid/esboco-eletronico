@@ -123,6 +123,32 @@ body.leitura-ampliada #tab-discurso .ponto{
   inset-inline-end:max(12px,env(safe-area-inset-right,0px));
 }
 
+/* Apresentação da presidência: mantém os mesmos controles de leitura. */
+body.leitura-presidencia #tab-presidencia > .tools,
+body.leitura-presidencia #dicaPresidencia{display:none}
+body.leitura-presidencia #tab-presidencia .sheet{
+  min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  border:0;
+  padding:clamp(10px,1.5vw,22px);
+  font-size:calc(var(--fs) + clamp(.22rem,1.5vw,.95rem));
+  overflow-wrap:anywhere;
+}
+body.leitura-presidencia #sairPresidencia{
+  position:fixed;z-index:12;top:calc(48px + env(safe-area-inset-top,0px));
+  inset-inline-end:max(12px,env(safe-area-inset-right,0px));
+}
+body.leitura-presidencia header.bar .date{display:none}
+.editor-ponto{position:relative}
+.editor-ponto textarea{padding-bottom:42px}
+.expandir-ponto{position:absolute;right:8px;bottom:8px}
+#editorAmplo{width:min(96vw,1100px);height:min(94dvh,920px);max-width:none;max-height:none;
+  border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);
+  padding:clamp(12px,2vw,24px);box-shadow:0 12px 45px #0006}
+#editorAmplo[open]{display:flex;flex-direction:column;gap:12px}
+#editorAmplo::backdrop{background:#000a}
+.editor-amplo-topo{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#textoEditorAmplo{flex:1;min-height:0;resize:none;font-size:clamp(1.05rem,2vw,1.3rem);line-height:1.6}
+@media(max-width:600px){#editorAmplo{width:100vw;height:100dvh;border-radius:0;margin:0}}
 /* Folha (presidência e discurso) */
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:28px clamp(18px,5vw,44px);font-family:var(--read);font-size:var(--fs);line-height:1.65}
 .sheet h2{font-family:var(--ui);text-align:center;margin:0 0 14px;font-size:1.3em;text-wrap:balance}
@@ -277,8 +303,11 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
     <button class="btn sm" data-fs="1" aria-label="Aumentar letra">A+</button>
     <button class="btn sm wake">Manter tela ligada</button>
     <button class="btn sm fundo" data-view="pres">Fundo escuro</button>
+    <button class="btn sm" type="button" id="ampliarPresidencia">Modo apresentação</button>
   </div>
-  <article class="sheet" id="sheet"></article>
+  <p class="hint" id="dicaPresidencia">No modo apresentação, toque no texto para mostrar o botão de saída.</p>
+  <button class="btn sm" type="button" id="sairPresidencia" hidden>Sair da apresentação</button>
+  <article class="sheet" id="sheet" tabindex="-1"></article>
 </section>
 
 <!-- EDITAR PRESIDÊNCIA -->
@@ -664,7 +693,7 @@ function renderPtEdit(){
   $("ptList").innerHTML=S.pontos.map((p,i)=>`<div class="blk pt-edit" data-id="${p.id}">
     <div class="r"><input data-k="titulo" id="pt-${p.id}" placeholder="Título do ponto" value="${esc(p.titulo)}" aria-label="Título do ponto">
       <input data-k="min" inputmode="numeric" placeholder="min" value="${esc(p.min)}" aria-label="Minutos"></div>
-    <textarea data-k="texto" rows="4" placeholder="Textos, perguntas, ilustrações…" aria-label="Conteúdo do ponto">${esc(p.texto)}</textarea>
+    <div class="editor-ponto"><textarea data-k="texto" rows="4" placeholder="Textos, perguntas, ilustrações…" aria-label="Conteúdo do ponto">${esc(p.texto)}</textarea><button class="btn sm expandir-ponto" type="button" data-expandir-ponto aria-label="Ampliar editor deste ponto">⛶ Ampliar texto</button></div>
     <div class="blk-head"><label>Cor da letra
       <select data-k="cor">${temCoresOriginais(p)?'<option value="original" selected disabled>Cores originais</option>':""}${Array.from(CORES_PONTO,([valor,nome])=>`<option value="${valor}"${!temCoresOriginais(p)&&(p.cor||"")===valor?" selected":""}>${nome}</option>`).join("")}</select>
     </label><span class="spacer"></span>
@@ -683,6 +712,35 @@ $("ptList").addEventListener("change",e=>{
   p.cor=e.target.value;delete p.coresTitulo;delete p.coresTexto;
   e.target.querySelector('option[value="original"]')?.remove();
   saveS();renderPtView();
+});
+/* Editor em tela ampla, sincronizado com o campo original e o armazenamento existente. */
+const editorAmplo=document.createElement("dialog");
+editorAmplo.id="editorAmplo";
+editorAmplo.setAttribute("aria-labelledby","tituloEditorAmplo");
+editorAmplo.innerHTML='<div class="editor-amplo-topo"><strong id="tituloEditorAmplo">Editar texto do ponto</strong><button class="btn sm" type="button" id="fecharEditorAmplo">Concluir e fechar</button></div><textarea id="textoEditorAmplo" aria-label="Texto completo do ponto" spellcheck="true"></textarea><p class="hint">As alterações são salvas automaticamente neste aparelho.</p>';
+document.body.append(editorAmplo);
+let pontoAberto=null;
+function fecharEditorAmplo(){if(editorAmplo.open)editorAmplo.close();pontoAberto=null;}
+$("fecharEditorAmplo").onclick=fecharEditorAmplo;
+editorAmplo.addEventListener("close",()=>{pontoAberto=null});
+$("textoEditorAmplo").addEventListener("input",()=>{
+  if(!pontoAberto)return;
+  const original=$("ptList").querySelector('.pt-edit[data-id="'+pontoAberto+'"] textarea[data-k="texto"]');
+  if(!original){fecharEditorAmplo();return}
+  original.value=$("textoEditorAmplo").value;
+  original.dispatchEvent(new Event("input",{bubbles:true}));
+});
+$("ptList").addEventListener("click",e=>{
+  const btn=e.target.closest("[data-expandir-ponto]");
+  if(!btn)return;
+  const bloco=btn.closest(".pt-edit");
+  pontoAberto=bloco?.dataset.id;
+  if(!pontoAberto)return;
+  $("textoEditorAmplo").value=bloco.querySelector('textarea[data-k="texto"]').value;
+  $("tituloEditorAmplo").textContent="Editar texto do ponto";
+  if(typeof editorAmplo.showModal==="function")editorAmplo.showModal();
+  else {editorAmplo.setAttribute("open","");}
+  $("textoEditorAmplo").focus();
 });
 $("ptList").addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(!a)return;
   moveAct(S.pontos,a,ptOf(a),()=>{saveS();renderPtEdit();renderPtView()})});
@@ -878,13 +936,29 @@ function applyCrono(){const show=C.crono&&curTab==="discurso";
 $("cronoToggle").onclick=()=>{C.crono=!C.crono;saveC();applyCrono()};
 
 /* ---------- Leitura ampliada ---------- */
-function setLeituraAmpliada(ativa){
+function setLeituraAmpliada(ativa,origem="discurso"){
+  if(origem==="presidencia"){
+    leituraAmpliada=ativa;
+    document.body.classList.toggle("leitura-ampliada",ativa);
+    document.body.classList.toggle("leitura-presidencia",ativa);
+    $("sairPresidencia").hidden=true;
+    applyCrono();
+    $(ativa?"sheet":"ampliarPresidencia").focus({preventScroll:true});
+    return;
+  }
+  document.body.classList.remove("leitura-presidencia");
   leituraAmpliada=ativa;
   document.body.classList.toggle("leitura-ampliada",ativa);
   $("sairLeituraAmpliada").hidden=true;
   applyCrono();
   $(ativa?"folhaDiscurso":"ampliarEsboco").focus({preventScroll:true});
 }
+$("ampliarPresidencia").onclick=()=>setLeituraAmpliada(true,"presidencia");
+$("sairPresidencia").onclick=()=>setLeituraAmpliada(false,"presidencia");
+$("sheet").addEventListener("click",event=>{
+  if(!leituraAmpliada||!document.body.classList.contains("leitura-presidencia")||event.target.closest("button")||window.getSelection()?.toString())return;
+  $("sairPresidencia").hidden=!$("sairPresidencia").hidden;
+});
 $("ampliarEsboco").onclick=()=>setLeituraAmpliada(true);
 $("sairLeituraAmpliada").onclick=()=>setLeituraAmpliada(false);
 $("folhaDiscurso").addEventListener("click",()=>{
@@ -892,7 +966,7 @@ $("folhaDiscurso").addEventListener("click",()=>{
   $("sairLeituraAmpliada").hidden=!$("sairLeituraAmpliada").hidden;
 });
 document.addEventListener("keydown",event=>{
-  if(event.key==="Escape"&&leituraAmpliada)setLeituraAmpliada(false);
+  if(event.key==="Escape"&&leituraAmpliada)setLeituraAmpliada(false,document.body.classList.contains("leitura-presidencia")?"presidencia":"discurso");
 });
 
 /* ---------- Manter tela ligada ---------- */
@@ -906,7 +980,9 @@ document.querySelectorAll(".wake").forEach(b=>b.onclick=async()=>{
 
 /* ---------- Abas ---------- */
 const TABS=["presidencia","personalizar","editar","discurso","editar-discurso","historico"];
-function showTab(name){curTab=name;
+function showTab(name){
+  if(leituraAmpliada)setLeituraAmpliada(false,document.body.classList.contains("leitura-presidencia")?"presidencia":"discurso");
+  curTab=name;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===name));
   TABS.forEach(t=>$("tab-"+t).hidden=t!==name);
   if(name==="historico")renderHist();
