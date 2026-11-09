@@ -325,12 +325,13 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
 
 <!-- EDITAR DISCURSO -->
 <section id="tab-editar-discurso" role="tabpanel" hidden>
-  <div class="card"><h3>Tempo</h3><div class="grid">
+  <div class="card"><h3>Tema e tempo</h3><div class="grid">
+    <div class="f full"><label for="temaDiscurso">Tema do discurso</label>
+      <input id="temaDiscurso" placeholder="Digite o título que aparece no esboço"></div>
     <div class="f"><label for="tMeta">Tempo do discurso</label>
       <select id="tMeta"></select></div>
     <div class="f"><span class="lbl">Soma dos pontos</span><span class="sum" id="ptSum" style="padding-top:10px"></span></div>
-  </div>
-  <p class="hint" style="margin:10px 0 0">Tema, orador e congregação vêm da aba Editar presidência.</p></div>
+  </div></div>
 
   <div class="card">
     <div class="card-head"><h3>Cores do esboço do discurso</h3><span class="spacer"></span><button class="btn sm" id="dCorReset">Cores padrão</button></div>
@@ -346,18 +347,18 @@ footer.foot{text-align:center;color:var(--muted);font-size:.85rem;padding-block:
   <div class="card">
     <div class="card-head"><h3>Pontos do esboço</h3></div>
     <p class="hint">Adicione um ponto ou cole o texto pronto. Os blocos colados recebem cores de letra alternadas, que você pode trocar. Linhas que começam com “-” viram tópicos. Com o cronômetro rodando, o ponto atual fica destacado na aba Discurso.</p>
-    <div class="blks" id="ptList"></div>
     <div class="tools" style="margin-top:12px">
       <button class="btn" id="ptAdd">+ Adicionar ponto</button>
-      <button class="btn" id="ptImpBtn">Colar texto pronto</button>
+      <button class="btn" id="ptImpBtn">Colar texto e gerar tópicos</button>
     </div>
     <div id="ptImp" hidden>
       <div class="f"><label for="ptImpTxt">Cole o esboço inteiro</label>
         <textarea id="ptImpTxt" rows="8" placeholder="Deixe uma linha em branco entre os pontos ou parágrafos que quer destacar."></textarea></div>
       <div class="preview-mini" id="ptImpCores" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:16rem;overflow:auto" aria-label="Prévia das cores coladas" hidden></div>
-      <p class="hint">Separe os blocos por uma linha em branco. Em “Criar pontos”, a primeira linha vira título. Em “Criar parágrafos”, todo o texto fica no corpo do bloco.</p>
-      <div class="tools" style="margin-top:10px"><button class="btn primary" id="ptImpOk">Criar pontos</button><button class="btn" id="ptImpParagrafos">Criar parágrafos</button><button class="btn" id="ptImpNo">Cancelar</button></div>
+      <p class="hint">Separe os blocos por uma linha em branco. Em “Gerar tópicos”, a primeira linha vira título. Em “Criar parágrafos”, todo o texto fica no corpo do bloco.</p>
+      <div class="tools" style="margin-top:10px"><button class="btn primary" id="ptImpOk">Gerar tópicos</button><button class="btn" id="ptImpParagrafos">Criar parágrafos</button><button class="btn" id="ptImpNo">Cancelar</button></div>
     </div>
+    <div class="blks" id="ptList"></div>
   </div>
 
   <div class="tools"><button class="btn primary" type="button" id="salvarDiscurso">Salvar discurso no histórico</button></div>
@@ -605,12 +606,22 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-fs]");if(!
   fs=Math.min(2.4,Math.max(.85,+(fs+(+b.dataset.fs)*.12).toFixed(2)));applyFs()});
 
 /* ---------- Dados (formulários) ---------- */
-function fillForm(){FIELDS.forEach(k=>{const el=$(k);if(el)el.value=S[k]??""})}
-FIELDS.forEach(k=>{const el=$(k);if(!el)return;el.addEventListener("input",()=>{S[k]=el.value;saveS();renderData()});
+function fillForm(){
+  FIELDS.forEach(k=>{const el=$(k);if(el)el.value=S[k]??""});
+  $("temaDiscurso").value=S.tema??"";
+}
+FIELDS.forEach(k=>{const el=$(k);if(!el)return;el.addEventListener("input",()=>{S[k]=el.value;if(k==="tema")$("temaDiscurso").value=el.value;saveS();renderData()});
   if(el.tagName==="SELECT")el.addEventListener("change",()=>{S[k]=el.value;saveS();renderData()})});
+$("temaDiscurso").addEventListener("input",e=>{
+  S.tema=e.target.value;
+  $("tema").value=S.tema;
+  saveS();renderData();
+});
 function renderDiscHead(){
-  $("discHead").innerHTML=`<p class="t">${esc(S.tema)||'<span style="color:var(--muted)">Tema ainda não preenchido</span>'}</p>
-   <div class="m">${S.orador?"Irmão "+esc(S.orador):"Orador não informado"}${S.congregacao?" · Congregação "+esc(S.congregacao):""}${S.esbocoNum?" · Esboço nº "+esc(S.esbocoNum):""} · ${meta()} min</div>`}
+  const tema=S.tema.trim();
+  $("discHead").innerHTML=`${tema?`<p class="t">${esc(tema)}</p>`:""}
+    <div class="m">${S.esbocoNum?`Esboço nº ${esc(S.esbocoNum)} · `:""}${meta()} min</div>`;
+}
 function renderData(){renderSheet();renderDiscHead();renderPtView();$("hdrDate").textContent=fmtData(S.data);$("miniMeta").textContent="/"+meta()}
 
 /* ---------- Esboço do discurso ---------- */
