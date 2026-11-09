@@ -157,6 +157,14 @@ body.leitura-ampliada #tab-discurso .ponto{
 .ponto p{margin:0 0 .4em;color:var(--d3)}
 .ponto ul{margin:0 0 .4em;padding-left:1.2em;color:var(--d4)}
 .ponto[data-cor] :is(h4,p,ul){color:var(--ponto-cor)}
+
+.cor-colada{color:var(--colada-clara)}
+:root[data-esq="dark"] .cor-colada,
+:root[data-theme="dark"]:not([data-esq]) .cor-colada{color:var(--colada-escura)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-esq]):not([data-theme="light"]) .cor-colada{color:var(--colada-escura)}
+}
+
 :root[data-nomark] .mark{background:none;color:inherit;padding:0}
 .sw.off{opacity:.45}
 .check{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:12px;cursor:pointer}
@@ -694,6 +702,48 @@ function faixasValidas(faixas,tamanho){
     fim=f.fim;return true;
   });
 }
+// Usa também o fundo do ponto ativo, que é mais claro que a folha escura.
+const fundoEscuroLeitura=[29,52,82];
+const luminancia=rgb=>rgb.reduce((s,v,i)=>{
+  const n=v/255;
+  return s+[.2126,.7152,.0722][i]*(n<=.04045?n/12.92:((n+.055)/1.055)**2.4);
+},0);
+function ajustarCorEscura(rgba){
+  const alfa=rgba[3]/255;
+  const rgb=fundoEscuroLeitura.map((v,i)=>Math.round(v+(rgba[i]-v)*alfa));
+  const minimo=4.5*(luminancia(fundoEscuroLeitura)+.05)-.05;
+  if(luminancia(rgb)>=minimo)return "";
+  let baixo=0,alto=255;
+  const clarear=n=>rgb.map(v=>Math.round(v+(255-v)*n/255));
+  while(baixo<alto){
+    const meio=(baixo+alto)>>1;
+    if(luminancia(clarear(meio))>=minimo)alto=meio;
+    else baixo=meio+1;
+  }
+  return `rgb(${clarear(alto).join(",")})`;
+}
+let contextoCorColada;
+const coresEscurasColadas=new Map();
+function corColadaEscura(cor){
+  if(coresEscurasColadas.has(cor))return coresEscurasColadas.get(cor);
+  if(contextoCorColada===undefined){
+    const canvas=document.createElement("canvas");
+    canvas.width=canvas.height=1;
+    contextoCorColada=canvas.getContext("2d",{willReadFrequently:true});
+  }
+  if(!contextoCorColada)return "var(--ink)";
+  contextoCorColada.clearRect(0,0,1,1);
+  contextoCorColada.fillStyle=cor;
+  contextoCorColada.fillRect(0,0,1,1);
+  const rgba=contextoCorColada.getImageData(0,0,1,1).data;
+  const rgb=rgba.slice(0,3);
+  const maximo=Math.max(...rgb);
+  const pretoOuCinzaEscuro=maximo<64&&maximo-Math.min(...rgb)<=8;
+  const adaptada=pretoOuCinzaEscuro?"var(--ink)":ajustarCorEscura(rgba)||cor;
+  coresEscurasColadas.set(cor,adaptada);
+  return adaptada;
+}
+
 function colorirTrecho(texto,faixas=[],inicio=0){
   const fim=inicio+texto.length;
   let pos=inicio,saida="";
@@ -703,7 +753,7 @@ function colorirTrecho(texto,faixas=[],inicio=0){
     const a=Math.max(inicio,f.inicio),b=Math.min(fim,f.fim);
     if(!corColadaValida(f.cor))continue;
     saida+=esc(texto.slice(pos-inicio,a-inicio));
-    saida+=`<span style="color:${f.cor}">${esc(texto.slice(a-inicio,b-inicio))}</span>`;
+    saida+=`<span class="cor-colada" style="--colada-clara:${f.cor};--colada-escura:${corColadaEscura(f.cor)}">${esc(texto.slice(a-inicio,b-inicio))}</span>`;
     pos=b;
   }
   return saida+esc(texto.slice(pos-inicio));

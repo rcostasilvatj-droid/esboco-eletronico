@@ -1,5 +1,5 @@
 // O cache contém apenas os arquivos públicos do aplicativo.
-const CACHE = "esboco-eletronico-v9";
+const CACHE = "esboco-eletronico-v10";
 const ARQUIVOS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 const ASSETS = new Set(ARQUIVOS.map(path => new URL(path, self.registration.scope).href));
 
