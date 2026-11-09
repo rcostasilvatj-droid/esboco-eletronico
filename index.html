@@ -499,6 +499,27 @@ if(!D||typeof D!=="object"||!Array.isArray(D.pontos)){
   ls.set(DCUR,D);
 }
 const saveD=()=>ls.set(DCUR,D);
+/* Preserva esboços que foram salvos anteriormente junto às reuniões. */
+(function migrarDiscursosLegados(){
+  const chave="discursos-migrados-v2";
+  if(localStorage.getItem(chave)==="1")return;
+  try{
+    const anteriores=ls.get(HKEY,[]),existentes=ls.get(DKEY,[]);
+    if(!Array.isArray(anteriores)||!Array.isArray(existentes))return;
+    const ids=new Set(existentes.map(x=>x.id));
+    for(const [i,item] of anteriores.entries()){
+      if(!item||!Array.isArray(item.pontos)||!item.pontos.length)continue;
+      const id="legado-"+(item.registroId||i);
+      if(ids.has(id))continue;
+      existentes.push({id,tema:String(item.tema||""),esbocoNum:String(item.esbocoNum||""),
+        tMeta:String(item.tMeta||""),pontos:JSON.parse(JSON.stringify(item.pontos)),
+        salvoEm:new Date().toISOString()});
+      ids.add(id);
+    }
+    localStorage.setItem(DKEY,JSON.stringify(existentes));
+    localStorage.setItem(chave,"1");
+  }catch(e){/* Falha de armazenamento: mantemos intactos os dados antigos. */}
+})();
 const meta=()=>+D.tMeta||30;
 $("tMeta").innerHTML='<option value="">Tempo padrão (30 minutos)</option>'+Array.from({length:43},(_,i)=>i+3).map(m=>`<option value="${m}">${m} minutos</option>`).join("");
 
@@ -922,7 +943,7 @@ function importarEsboco(comTitulos){
     if(coresTexto.length)ponto.coresTexto=coresTexto;
     D.pontos.push(ponto);
   }
-  saveS();campoColado.value="";colagemColorida=null;$("ptImpCores").hidden=true;$("ptImp").hidden=true;
+  saveD();campoColado.value="";colagemColorida=null;$("ptImpCores").hidden=true;$("ptImp").hidden=true;
   renderPtEdit();renderPtView();toast(blocos.length+" bloco(s) criado(s)");
 }
 $("ptImpOk").onclick=()=>importarEsboco(true);
@@ -1134,6 +1155,7 @@ function backupValido(b){
 function gravarBackup(b){
   const dados=[[KEY,b.atual],[HKEY,b.historico],[CKEY,b.preferencias],[FSKEY,b.tamanhoLetra]];
   if(b.versao===2)dados.push([DKEY,b.discursos],[DCUR,b.discursoAtual]);
+  else dados.push([DKEY,[]],[DCUR,{tema:b.atual.tema||"",esbocoNum:b.atual.esbocoNum||"",tMeta:b.atual.tMeta||"",pontos:b.atual.pontos||[],id:""}]);
   const anteriores=dados.map(([chave])=>[chave,localStorage.getItem(chave)]);
   let gravados=0;
   try{
