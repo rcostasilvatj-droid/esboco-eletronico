@@ -92,24 +92,35 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
 
 /* Modo apresentação */
-body.leitura-ampliada header.bar,
+body.leitura-ampliada header.bar:has(#mini[hidden]),
+body.leitura-ampliada header.bar .brand,
+body.leitura-ampliada header.bar .date,
+body.leitura-ampliada header.bar nav,
+body.leitura-ampliada #pwa-install,
+body.leitura-ampliada #miniReset,
 body.leitura-ampliada #tab-discurso > .tools,
 body.leitura-ampliada #dicaApresentacao,
 body.leitura-ampliada footer.foot{display:none}
-body.leitura-ampliada .wrap{max-width:none;padding-block:0}
+body.leitura-ampliada .bar-in{max-width:none;padding-block:0}
+body.leitura-ampliada .top{justify-content:center;min-height:40px}
+body.leitura-ampliada .wrap{
+  max-width:none;
+  padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);
+}
 body.leitura-ampliada #tab-discurso .sheet{
   min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
   border:0;
-  padding:clamp(12px,2.4vw,36px);
-  font-size:calc(var(--fs) + clamp(.12rem,1vw,.65rem));
+  padding:clamp(10px,1.5vw,22px);
+  font-size:calc(var(--fs) + clamp(.22rem,1.5vw,.95rem));
   overflow-wrap:anywhere;
 }
-#sairLeituraAmpliada{
-  position:fixed;z-index:12;top:max(12px,env(safe-area-inset-top));
-  inset-inline-end:max(12px,env(safe-area-inset-right));
+body.leitura-ampliada #tab-discurso .ponto{
+  grid-template-columns:minmax(0,1fr);
+  padding-inline:clamp(6px,1vw,14px);
 }
-@media (max-width:520px){
-  body.leitura-ampliada #tab-discurso .ponto{grid-template-columns:minmax(0,1fr)}
+#sairLeituraAmpliada{
+  position:fixed;z-index:12;top:calc(48px + env(safe-area-inset-top,0px));
+  inset-inline-end:max(12px,env(safe-area-inset-right,0px));
 }
 
 /* Folha (presidência e discurso) */
@@ -800,7 +811,7 @@ $("miniGo").onclick=()=>{if(t0){acc+=Date.now()-t0;t0=null;clearInterval(tick);$
 $("miniReset").onclick=()=>{t0=null;acc=0;clearInterval(tick);$("miniGo").textContent="Iniciar";drawClock()};
 let leituraAmpliada=false;
 function applyCrono(){const show=C.crono&&curTab==="discurso";
-  $("mini").hidden=!show||leituraAmpliada;
+  $("mini").hidden=!show;
   $("miniProg").hidden=!show||leituraAmpliada;$("hdrDate").hidden=curTab==="discurso";
   $("cronoToggle").textContent="Cronômetro: "+(C.crono?"ligado":"desligado");$("cronoToggle").classList.toggle("on",C.crono);curIdx=-2;drawClock()}
 $("cronoToggle").onclick=()=>{C.crono=!C.crono;saveC();applyCrono()};
